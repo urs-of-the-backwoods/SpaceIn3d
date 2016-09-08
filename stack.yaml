@@ -1,0 +1,4 @@
+extra-deps: ["HGamer3D-0.8.0", "fresco-binding-0.2.0", "vect-0.4.7", "rapid-0.1.2"]
+resolver: lts-5.8
+flags: {}
+packages: [".", "../HMap"]
