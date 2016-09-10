@@ -56,6 +56,7 @@ movementActorF m = do
     (hg3d, screenA, musicA, collA, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     (c, lastGameData, colls) <- get
+--    liftIO $ print $ length colls
 
     case m of
 
@@ -84,15 +85,16 @@ movementActorF m = do
                         Nothing -> liftIO (print "lost cycle") >> return ()
                         Just gameData -> do
                             put (c + 1, lastGameData, [])
-                            liftIO $ forkIO $ doOneRun keys collA lastGameData gameData colls move moves
+                            liftIO $ forkIO $ doOneRun keys collA musicA lastGameData gameData colls move moves
+--                          liftIO $ doOneRun keys collA musicA lastGameData gameData colls move moves
                             return ()
                 else return ()
 
         _ -> return ()
 
 
-doOneRun :: Keys -> Actor -> MVar GameData -> GameData -> [Unique] -> Int -> Int -> IO ()
-doOneRun keys collA lastGameData gameData colls move moves = do
+doOneRun :: Keys -> Actor -> Actor -> MVar GameData -> GameData -> [Unique] -> Int -> Int -> IO ()
+doOneRun keys collA musicA lastGameData gameData colls move moves = do
 
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
 
@@ -104,6 +106,7 @@ doOneRun keys collA lastGameData gameData colls move moves = do
                                 let i = nodeData ! kuni
                                 if i `elem` (colls) 
                                     then do
+                                        sendMsg musicA PlayExplosion
                                         let nodeData' = deactivateInvader nodeData kpos
                                         liftIO $ moveNode keys nodeData' (nodeData' ! kpos)
                                         return nodeData'

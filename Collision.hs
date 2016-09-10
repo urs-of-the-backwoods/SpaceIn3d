@@ -89,7 +89,7 @@ runCollisionDetection :: Keys -> GameData -> GameData -> MVar () -> Actor -> Act
 runCollisionDetection keys invaderData canonData busyFlag moveA canonA statusA = do
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     let invs = filter (\(nt, nd) -> case nt of
-            (Invader _) -> True
+            (Invader _) -> let (x, y) = nd ! kpos in if x < (-500) then False else True
             _ -> False
             ) (flatten invaderData)
     let shots = filter (\(nt, nd) -> nt == Shot) (flatten canonData)

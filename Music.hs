@@ -35,12 +35,12 @@ import Actor
 -- -----------
 
 type MaR = HG3D
-type MaS = (Entity, Entity, Entity)
+type MaS = (Entity, Entity, Entity, Entity)
 
 musicActorF :: Message -> ReaderStateIO MaR MaS ()
 musicActorF m = do
     hg3d <- lift ask
-    (music, shot, no_shot) <- get
+    (music, shot, no_shot, invader_killed) <- get
 
     case m of 
         InitActor -> do
@@ -56,12 +56,12 @@ musicActorF m = do
             invader_killed <- liftIO $ newE hg3d [ 
                 ctSoundSource #: Sound "Music/invaderkilled.wav" 1.0 False "Sounds",
                 ctPlayCmd #: Stop ]
-            put (music, shot, no_shot)
+            put (music, shot, no_shot, invader_killed)
             return ()
 
         PlayShot -> liftIO (setC shot ctPlayCmd Play) >> return ()
         PlayNoShot -> liftIO (setC no_shot ctPlayCmd Play) >> return ()
-        -- PlayExplosion -> liftIO (setC invader_killed ctPlayCmd Play) >> return ()
+        PlayExplosion -> liftIO (setC invader_killed ctPlayCmd Play) >> return ()
 
         StartMusic -> liftIO (setC music ctPlayCmd Play) >> return ()
         StopMusic -> liftIO (setC music ctPlayCmd Stop) >> return ()

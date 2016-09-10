@@ -54,7 +54,7 @@ gameLogic hg3d = do
     -- interconnect and run them
     runActor statusBarA statusBarActorF hg3d (undefined, undefined, undefined)
     runActor flyingA flyingActorF (hg3d, cam) (undefined, undefined)
-    runActor musicA musicActorF hg3d (undefined, undefined, undefined)
+    runActor musicA musicActorF hg3d (undefined, undefined, undefined, undefined)
     runActor collA collisionActorF (moveA, canonA, statusBarA, keys) (Nothing, Nothing, undefined)
     runActor canonA canonActorF (hg3d, screenA, musicA, collA, keys) (undefined, undefined, undefined)
     runActor moveA movementActorF (hg3d, screenA, musicA, collA, keys) (0, undefined, [])
