@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Move where
+module Move (
+        movementActorF
+    ) where
 
 import HGamer3D
 
@@ -23,6 +25,7 @@ import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 
+import Data.Unique
 import Debug.Trace
 
 import Data
@@ -32,259 +35,153 @@ import Actor
 -- MOVEMENT ACTOR
 -- --------------
 
-type MoaR = (HG3D, Actor, Actor, KEnt, KDim, KPos, KHits, KAnim)
-type MoaS = (Int, PixelPos, PixelPos, GameData)
+buildInvadersData :: [BuildElement]
+buildInvadersData = [
+        BEOne Ship (0, 100),
+        BERow (Invader 3) (-60, 85) 15 11,
+        BERow (Invader 2) (-60, 70) 15 11,
+        BERow (Invader 2) (-60, 55) 15 11,
+        BERow (Invader 1) (-60, 40) 15 11,
+        BERow (Invader 1) (-60, 25) 15 11
+    ]
+
+type MoaR = (HG3D, Actor, Actor, Actor, Keys)
+type MoaS = (Int, MVar GameData, [Unique])
 
 mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
 
 movementActorF :: Message -> ReaderStateIO MoaR MoaS ()
 movementActorF m = do
 
-    (hg3d, screenA, musicA, kent, kdim, kpos, khits, kanim) <- lift ask
-    (c, canonPos, canonMove, gameData) <- get
+    (hg3d, screenA, musicA, collA, keys) <- lift ask
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
+    (c, lastGameData, colls) <- get
 
     case m of
 
-        BuildLevel buildData1 -> do
-            createLevel buildData1
+        Collision iid -> put (c, lastGameData, iid : colls)
+
+        InitActor -> do
+            mv <- liftIO $ newEmptyMVar
+            put (c, mv, colls)
+
+        BuildLevel -> do
+            createLevel buildInvadersData
             liftIO  $ sendMsg screenA BuildDone
             return ()
 
-        MoveLeft -> do
-            let (x, y) = canonMove
-            let (px, py) = canonPos
-            if (px > -65)
-                then put (c, (px - 1, py), (x - 1, y), gameData)
-                else return ()
-
-        MoveRight ->  do
-            let (x, y) = canonMove
-            let (px, py) = canonPos
-            if (px < 100)
-                then put (c, (px + 1, py), (x + 1, y), gameData)
-                else return ()
-
-        Shoot -> do
-            bulletAvailable <- shoot
-            if bulletAvailable 
-                then liftIO $ sendMsg musicA PlayShot
-                else liftIO $ sendMsg musicA PlayNoShot
-            return ()
-
-        MovementCycle -> do
-
+        SlowCycle -> do
+            -- try to get result from last run
             let moves = c `div` nWait + (movesRightLeft `div` 2) -- start in the middle 
             let bMove = (c `mod` nWait == 0) && ((c `div` nWait) < (( 2 * movesRightLeft + 2 ) * movesDown) ) 
             let move = moves `mod` (2 * movesRightLeft + 2)
+            put (c + 1, lastGameData, colls)
 
-            -- general movement
-            gameData' <- mapM (\(nodeType, nodeData) -> do
-                nodeData' <- case nodeType of
-                    -- invaders stepping
-                    (Invader _) -> do invaderMove nodeData bMove move
-                    -- shots moving
-                    Shot -> do
-                        nd <- moveNode nodeData (0, 2)
-                        let (x, y) = nd ! kpos
-                        if y > 100 
-                            then return (deactivateShot nd kpos)
-                            else return nd
-                    -- canon move
-                    Canon -> moveNode nodeData canonMove
-                    -- no move
-                    _ -> return nodeData
-                return (nodeType, nodeData')
-                ) gameData
-
-            -- pixel animation
-            (gameData'', _) <- if bMove 
-                then
-                    liftIO (mapAccumLM (\(nodeType, nodeData) (nt, nd) -> case nodeType of
-                        (Invader _) -> do
-                            let ai = nodeData ! kanim
-                            let ai' = getCurrentAnimation ai moves
-                            let nodeData' = setData kanim ai' nodeData
-                            return ((nodeType, nodeData'), (nodeType, nodeData')) -- set acc to nodeData of Invader
-
-                        PixelA -> do
-                            let ai = nd ! kanim         -- accu, this is the previous Invader node info!
-                            if aiSwapNow ai
-                                then do
-                                    let (x, y) = nodeData ! kpos
-                                    case aiType ai of
-                                        PixelA -> setC (nodeData ! kent) ctPosition $ relativePosFromPixelPos (nd ! kdim) (x, y)
-                                        PixelB -> setC (nodeData ! kent) ctPosition (Vec3 (-1000.0) 0 0)
-                                        _ -> return ()
-                                else return ()
-                            return ((nodeType, nodeData), (nt, nd))
-
-                        PixelB ->  do
-                            let ai = nd ! kanim         -- accu, this is the previous Invader node info!
-                            if aiSwapNow ai
-                                then do
-                                    let (x, y) = nodeData ! kpos
-                                    case aiType ai of
-                                        PixelB -> setC (nodeData ! kent) ctPosition $ relativePosFromPixelPos (nd ! kdim) (x, y)
-                                        PixelA -> setC (nodeData ! kent) ctPosition (Vec3 (-1000.0) 0 0)
-                                        _ -> return ()
-                                else return ()
-                            return ((nodeType, nodeData), (nt, nd))
-
-                        _ -> return ((nodeType, nodeData), (nt, nd)) -- noch changes
-
-                    ) (undefined, undefined) gameData')
-                else return (gameData', undefined)
-
-            -- hit detection
-
-
-            put (c + 1, canonPos, (0, 0), gameData'') 
+            if bMove 
+                then do
+                    mbGameData <- liftIO $ tryTakeMVar lastGameData
+                    case mbGameData of
+                        Nothing -> liftIO (print "lost cycle") >> return ()
+                        Just gameData -> do
+                            put (c + 1, lastGameData, [])
+                            liftIO $ forkIO $ doOneRun keys collA lastGameData gameData colls move moves
+                            return ()
+                else return ()
 
         _ -> return ()
 
 
+doOneRun :: Keys -> Actor -> MVar GameData -> GameData -> [Unique] -> Int -> Int -> IO ()
+doOneRun keys collA lastGameData gameData colls move moves = do
 
--- create a node with subnodes for moveable item and cubes below
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
 
-createMoveNode :: NodeType -> PixelPos -> ReaderStateIO MoaR MoaS GameData
-createMoveNode nodeType pos = do
+    -- general movement
+    gameData' <- mapM (\(nodeType, nodeData) -> do
+                        nodeData' <- case nodeType of
+                            -- invaders stepping
+                            (Invader _) -> do 
+                                let i = nodeData ! kuni
+                                if i `elem` (colls) 
+                                    then do
+                                        let nodeData' = deactivateInvader nodeData kpos
+                                        liftIO $ moveNode keys nodeData' (nodeData' ! kpos)
+                                        return nodeData'
+                                    else invaderMove keys nodeData move
+                            _ -> return nodeData
+                        return (nodeType, nodeData')
+                        ) gameData
 
-    (hg3d, screenA, musicA, kent, kdim, kpos, khits, kanim) <- lift ask
+    -- pixel animation
+    (gameData'', _) <- mapAccumLM (\(nodeType, nodeData) (nt, nd) -> case nodeType of
+                (Invader _) -> do
+                    let ai = nodeData ! kanim
+                    let ai' = getCurrentAnimation ai moves
+                    let nodeData' = setData kanim ai' nodeData
+                    return ((nodeType, nodeData'), (nodeType, nodeData')) -- set acc to nodeData of Invader
 
-    let arts = artwork M.! nodeType
-    let (ppA, ppB) = pixelPairs arts
-    let (w, h) = dimArt arts
-    let dim = diFromSize w h
-    let hits = hiNew (hitData M.! nodeType)
-    anim <- liftIO $ aiNew
+                PixelA -> do
+                    let ai = nd ! kanim         -- accu, this is the previous Invader node info!
+                    if aiSwapNow ai
+                        then do
+                            let (x, y) = nodeData ! kpos
+                            case aiType ai of
+                                PixelA -> setC (nodeData ! kent) ctPosition $ relativePosFromPixelPos (nd ! kdim) (x, y)
+                                PixelB -> setC (nodeData ! kent) ctPosition (Vec3 (-1000.0) 0 0)
+                                _ -> return ()
+                        else return ()
+                    return ((nodeType, nodeData), (nt, nd))
 
-    let delta = pixelWidth + lineWidth
-    let mat = matArt arts
+                PixelB ->  do
+                    let ai = nd ! kanim         -- accu, this is the previous Invader node info!
+                    if aiSwapNow ai
+                        then do
+                            let (x, y) = nodeData ! kpos
+                            case aiType ai of
+                                PixelB -> setC (nodeData ! kent) ctPosition $ relativePosFromPixelPos (nd ! kdim) (x, y)
+                                PixelA -> setC (nodeData ! kent) ctPosition (Vec3 (-1000.0) 0 0)
+                                _ -> return ()
+                        else return ()
+                    return ((nodeType, nodeData), (nt, nd))
 
-    eGeo <- liftIO $ newE hg3d [
-        ctGraphicsElement #: (),
-        ctScale #: Vec3 1.0 1.0 1.0,
-        ctPosition #: posFromPixelPos dim pos,
-        ctOrientation #: unitU
-        ]
+                _ -> return ((nodeType, nodeData), (nt, nd)) -- noch changes
 
-    let nd = setData kanim anim $ setData kdim dim $ setData kent eGeo $ setData kpos pos $ initData khits hits
+            ) (undefined, undefined) gameData'
 
-    eGeoId <- liftIO $ idE eGeo
+    sendMsg collA $ ActualInvaderData gameData''
+    putMVar lastGameData gameData''
 
-    let createPE t (x, y) = do
-            e <- newE hg3d [
-                ctParent #: eGeoId,
-                ctGeometry #: ShapeGeometry Cube,
-                ctMaterial #: mat,
-                ctScale #: Vec3 pixelWidth pixelWidth pixelWidth,
-                ctPosition #: (if t == Pixel || t == PixelA then relativePosFromPixelPos dim (x, y) else (Vec3 (-1000) 0 0)), 
-                ctOrientation #: unitU
-                ]
-            return (e, (x, y), t)
---            return (e, (x - ((diWidth dim) `div` 2), y - ((diHeight dim) `div` 2)), t)
-
-    case ppB of
-        Nothing -> do
-            pes <- liftIO $ mapM (createPE Pixel) ppA
-            return $ Node (nodeType, nd) (map (\(e, p, t) -> Node (t, (setData kent e (initData kpos p))) []) pes)
-
-        Just ppB' -> do
-            let ppBoth = filter (\p ->  p `elem` ppB') ppA
-            pesBoth <- liftIO $ mapM (createPE Pixel) ppBoth
-
-            let ppAOnly = filter (\p ->  not (p `elem` ppB')) ppA
-            pesA <- liftIO $ mapM (createPE PixelA) ppAOnly
-
-            let ppBOnly = filter (\p ->  not (p `elem` ppA)) ppB'
-            pesB <- liftIO $ mapM (createPE PixelB) ppBOnly
-
-            return $ Node (nodeType, nd) (map (\(e, p, t) -> Node (t, (setData kent e (initData kpos p))) []) (pesBoth ++ pesA ++ pesB))
 
 createLevel :: [BuildElement] -> ReaderStateIO MoaR MoaS ()
 createLevel bd = do
 
-    (hg3d, screenA, musicA, kent, kdim, kpos, khits, kanim) <- lift ask
-    (cycles, _, _, _) <- get
-
-    nodes <- mapM (\be -> case be of
-                            BEOne nt pix -> createMoveNode nt pix
-                            BERow nt pix@(x, y) space count -> do
-                                let (nt', nt'') = case nt of
-                                        (Invader n) -> (InvaderRow, Invader n)
-                                        Boulder -> (BoulderRow, Boulder)
-                                        Canon -> (CanonRow, ReserveCanon)
-                                        Shot -> (ShotRow, Shot)
-                                subnodes <- mapM (\pix' -> createMoveNode nt'' pix') [(x' + x, y) | x' <- [0, space .. ((count-1)*space)]] 
-                                return (Node (nt', (HM.singleton kpos pix)) subnodes) 
-                    ) bd 
-
-    let tree = Node (Empty, HM.empty) nodes
-    put (cycles, (0, -65), (0, 0), tree)
+    (hg3d, screenA, musicA, collA, keys) <- lift ask
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
+    (cycles, lastGameData, colls) <- get
+    tree <- liftIO $ gameDataFromBuildData hg3d keys bd
+    liftIO $ putMVar lastGameData tree
+    put (cycles, lastGameData, colls)
     return ()
 
--- moving
-
-moveNode :: NodeData -> PixelPos -> ReaderStateIO MoaR MoaS NodeData
-moveNode nodeData (x', y') = do
-
-    (hg3d, screenA, musicA, kent, kdim, kpos, khits, kanim) <- lift ask
-
-    let (x, y) = nodeData ! kpos
-    let nodeData' = setData kpos (x + x', y + y') nodeData
-    let e = nodeData ! kent
-    let di = nodeData ! kdim
-    liftIO $ setC e ctPosition $ posFromPixelPos di (x + x', y + y')
-    return nodeData'
-
-nWait = 20 :: Int
+nWait = 4 :: Int
 movesRightLeft = 10 :: Int
 movesDown = 15 :: Int
 
-invaderMove :: NodeData -> Bool -> Int -> ReaderStateIO MoaR MoaS NodeData
-invaderMove nd bMove move = do
+invaderMove :: Keys -> NodeData -> Int -> IO NodeData
+invaderMove keys nd move = do
 
-    if bMove 
-        then if move < movesRightLeft 
-                    then moveNode nd (2,0) 
-                    else if move == movesRightLeft
-                            then moveNode nd (0, -5) 
-                            else if move <= 2 * movesRightLeft
-                                        then moveNode nd (-2, 0) 
-                                        else moveNode nd (0, -5)
-        else return nd
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
+
+    if move < movesRightLeft 
+        then moveNode keys nd (2,0) 
+        else if move == movesRightLeft
+                then moveNode keys nd (0, -5) 
+                else if move <= 2 * movesRightLeft
+                            then moveNode keys nd (-2, 0) 
+                            else moveNode keys nd (0, -5)
 
 
--- shooting
-
-isActiveShot :: NodeData -> KPos -> Bool
-isActiveShot nd k = let
-    (x, y) = nd ! k
-    in x > (-500)
-
-deactivateShot :: NodeData -> KPos -> NodeData
-deactivateShot nd kpos = setData kpos (-1000, 0) nd
-
-shoot :: ReaderStateIO MoaR MoaS Bool
-shoot = do
-    (hg3d, screenA, musicA, kent, kdim, kpos, khits, kanim) <- lift ask
-    (cycles, canonPos, canonMove, gameData) <- get
-    let (x, y) = canonPos
-    let shootPos = (x, y + 5)
-    let ((found', nodeData'), gameData') = Tr.mapAccumL (\(found, nd) (nodeType, nodeData) -> if (not found && nodeType == Shot)
-                        then
-                            if not (isActiveShot nodeData kpos)
-                                then ((True, nodeData), (Shot, setData kpos shootPos nodeData))
-                                else ((False, undefined), (nodeType, nodeData))
-                        else ((found, nd), (nodeType, nodeData))
-                  ) (False, undefined) gameData
-
-    if found'
-        then do
-            liftIO $ setC (nodeData' ! kent) ctPosition $ posFromPixelPos (nodeData' ! kdim) shootPos
-            put (cycles, canonPos, canonMove, gameData')
-        else return ()
-
-    return found'
+deactivateInvader :: NodeData -> KPos -> NodeData
+deactivateInvader nd kpos = setData kpos (-1000, 0) nd
 
 

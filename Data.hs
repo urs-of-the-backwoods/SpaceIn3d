@@ -15,6 +15,8 @@ import qualified Data.HMap as HM
 import qualified Data.Text as T
 import Data.Tree
 import Data.Maybe
+import Data.Unique
+
 import qualified Data.Data as D
 import qualified Data.Traversable as Tr
 import qualified Data.Foldable as Fd
@@ -24,6 +26,11 @@ import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 
 import Debug.Trace
+
+
+-- state game is in (which screen, mode, ...)
+
+data GameState = ProgramInitializing | InitScreen | BuildField2 | BuildField1 | PlayGame | Flying | FinalScore deriving (Eq, Ord, Show)
 
 -- main data structure for game content - the game data tree
 -- ---------------------------------------------------------
@@ -43,6 +50,20 @@ type KHits = HM.HKey HM.T HitInfo
 type KDim = HM.HKey HM.T DimInfo
 type KEnt = HM.HKey HM.T Entity
 type KAnim = HM.HKey HM.T AnimInfo
+type KUni = HM.HKey HM.T Unique
+
+type Keys = (KEnt, KDim, KPos, KHits, KAnim, KUni)
+
+genKeys :: IO Keys
+genKeys = do     
+    kent <- HM.createKey
+    kdim <- HM.createKey
+    kpos <- HM.createKey
+    khits <- HM.createKey
+    kanim <- HM.createKey
+    kuni <- HM.createKey
+    return (kent, kdim, kpos, khits, kanim, kuni)
+
 
 -- data for all moving parts are kept in a flexible tree data structure
 -- each node of this tree has a node type and node data
@@ -158,6 +179,97 @@ getCurrentAnimation anim cycle = if (cycle + aiStartCycle anim) `mod` (aiCycles 
                         aiSwapNow = True
                         }
 
+-- create moving entities
+-- ----------------------
+
+createMoveNode :: HG3D -> Keys -> NodeType -> PixelPos -> IO GameData
+createMoveNode hg3d keys nodeType pos = do
+
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
+
+    let arts = artwork M.! nodeType
+    let (ppA, ppB) = pixelPairs arts
+    let (w, h) = dimArt arts
+    let dim = diFromSize w h
+    let hits = hiNew (hitData M.! nodeType)
+    anim <- aiNew
+    uni <- newUnique
+
+    let delta = pixelWidth + lineWidth
+    let mat = matArt arts
+
+    eGeo <- newE hg3d [
+        ctGraphicsElement #: (),
+        ctScale #: Vec3 1.0 1.0 1.0,
+        ctPosition #: posFromPixelPos dim pos,
+        ctOrientation #: unitU
+        ]
+
+    let nd = setData kuni uni $ setData kanim anim $ setData kdim dim $ setData kent eGeo $ setData kpos pos $ initData khits hits
+
+    eGeoId <- idE eGeo
+
+    let createPE t (x, y) = do
+            e <- newE hg3d [
+                ctParent #: eGeoId,
+                ctGeometry #: ShapeGeometry Cube,
+                ctMaterial #: mat,
+                ctScale #: Vec3 pixelWidth pixelWidth pixelWidth,
+                ctPosition #: (if t == Pixel || t == PixelA then relativePosFromPixelPos dim (x, y) else (Vec3 (-1000) 0 0)), 
+                ctOrientation #: unitU
+                ]
+            uni' <- newUnique
+            return (e, (x, y), t, uni')
+--            return (e, (x - ((diWidth dim) `div` 2), y - ((diHeight dim) `div` 2)), t)
+
+    case ppB of
+        Nothing -> do
+            pes <- mapM (createPE Pixel) ppA
+            return $ Node (nodeType, nd) (map (\(e, p, t, u) -> Node (t, (setData kuni u (setData kent e (initData kpos p)))) []) pes)
+
+        Just ppB' -> do
+            let ppBoth = filter (\p ->  p `elem` ppB') ppA
+            pesBoth <- mapM (createPE Pixel) ppBoth
+
+            let ppAOnly = filter (\p ->  not (p `elem` ppB')) ppA
+            pesA <- mapM (createPE PixelA) ppAOnly
+
+            let ppBOnly = filter (\p ->  not (p `elem` ppA)) ppB'
+            pesB <- mapM (createPE PixelB) ppBOnly
+
+            return $ Node (nodeType, nd) (map (\(e, p, t, u) -> Node (t, (setData kuni u (setData kent e (initData kpos p)))) []) (pesBoth ++ pesA ++ pesB))
+
+
+gameDataFromBuildData :: HG3D -> Keys -> [BuildElement] -> IO GameData
+gameDataFromBuildData hg3d keys bd = do
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
+    nodes <- mapM (\be -> case be of
+                BEOne nt pix -> createMoveNode hg3d keys nt pix
+                BERow nt pix@(x, y) space count -> do
+                    let (nt', nt'') = case nt of
+                            (Invader n) -> (InvaderRow, Invader n)
+                            Boulder -> (BoulderRow, Boulder)
+                            Canon -> (CanonRow, ReserveCanon)
+                            Shot -> (ShotRow, Shot)
+                    subnodes <- mapM (\pix' -> createMoveNode hg3d keys nt'' pix') [(x' + x, y) | x' <- [0, space .. ((count-1)*space)]] 
+                    return (Node (nt', (HM.singleton kpos pix)) subnodes) 
+        ) bd 
+    return $ Node (Empty, HM.empty) nodes
+
+
+moveNode :: Keys -> NodeData -> PixelPos -> IO NodeData
+moveNode keys nodeData (x', y') = do
+
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
+
+    let (x, y) = nodeData ! kpos
+    let nodeData' = setData kpos (x + x', y + y') nodeData
+    let e = nodeData ! kent
+    let di = nodeData ! kdim
+    liftIO $ setC e ctPosition $ posFromPixelPos di (x + x', y + y')
+    return nodeData'
+
+
 -- data for flying
 -- ---------------
 
@@ -174,22 +286,6 @@ type Artwork = ([T.Text], Maybe [T.Text], Material)
 
 hitData :: M.Map NodeType Int
 hitData = M.fromList [ (Shot, 1), (Canon, 0), (ReserveCanon, 0), (Boulder, 0), (Ship, 3), (Invader 1, 1), (Invader 2, 1), (Invader 3, 2) ]
-
--- first game level
-
-buildData1 :: [BuildElement]
-buildData1 = [
-        BEOne Ship (0, 100),
-        BERow (Invader 3) (-60, 85) 15 11,
-        BERow (Invader 2) (-60, 70) 15 11,
-        BERow (Invader 2) (-60, 55) 15 11,
-        BERow (Invader 1) (-60, 40) 15 11,
-        BERow (Invader 1) (-60, 25) 15 11,
-        BERow Boulder (-45, -50) 40 4,
-        BEOne Canon (0, -65),
-        BERow Canon (-60, -80) 15 2,
-        BERow Shot (-1000, 0) 5 5
-    ]
 
 -- get a list of (x, y) from Artwork
 pixelPairs :: Artwork -> ([(Int, Int)], Maybe [(Int, Int)])

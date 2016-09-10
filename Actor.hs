@@ -22,6 +22,7 @@ import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import Data.Unique
 
 import Debug.Trace
 
@@ -36,13 +37,16 @@ data Message = InitActor | StopActor -- intialize and stop actor
              | InitMusic | StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion -- music actor
              | StartProgram | BuildDone | KeysPressed [T.Text] | SingleKey T.Text -- screen actor
              | InitKeys | PollKeys -- key input actor
-             | BuildLevel [BuildElement] | MoveLeft | MoveRight | Shoot | MovementCycle -- movement actor
+             | FastCycle | SlowCycle 
+             | BuildLevel | MoveLeft | MoveRight | Shoot | MovementCycle -- movement actor
              | RollRight | RollLeft | PitchUp | PitchDown -- flying control
              | YawLeft | YawRight 
              | MoreSpeed | LessSpeed | ZeroSpeed 
              | ResetCamPosition | RestoreCamPosition | SaveCamPosition
              | DisplayStatus | HideStatus | SetName T.Text | SetCount Int | SetMode T.Text -- status bar actor
-             deriving (Eq, Ord, Show)
+             | ActualInvaderData GameData | ActualCanonData GameData -- send to collision detector actor
+             | Collision Unique -- collision detected
+--             deriving (Show)
 
 -- we are going for an actor model with forkIO starting an actor and MVar being 
 -- the message passing channel, actors are bigger pieces of logic 

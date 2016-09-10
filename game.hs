@@ -29,10 +29,12 @@ import Data
 import Actor
 import Input
 import Move
+import Canon
 import Music
 import Screen
 import Status
 import Fly
+import Collision
 
 
 -- MAIN PROGRAM
@@ -41,33 +43,34 @@ import Fly
 gameLogic :: HG3D -> IO ()
 gameLogic hg3d = do
 
-    -- create basic keys
-    kent <- HM.createKey
-    kdim <- HM.createKey
-    kpos <- HM.createKey
-    khits <- HM.createKey
-    kanim <- HM.createKey
+    keys <- genKeys
 
     -- intialize cam
     cam <- initializeCam hg3d
 
     -- create actors
-    [moveA, flyingA, musicA, screenA, keyA, statusBarA] <- mapM (const newActor) [1..6]
+    [moveA, canonA, collA, flyingA, musicA, screenA, keyA, statusBarA] <- mapM (const newActor) [1..8]
 
     -- interconnect and run them
     runActor statusBarA statusBarActorF hg3d (undefined, undefined, undefined)
     runActor flyingA flyingActorF (hg3d, cam) (undefined, undefined)
     runActor musicA musicActorF hg3d (undefined, undefined, undefined)
-    runActor moveA movementActorF (hg3d, screenA, musicA, kent, kdim, kpos, khits, kanim) (0, undefined, undefined, undefined)
-    runActor screenA gameScreenActorF (hg3d, moveA, musicA, flyingA, statusBarA) (undefined, undefined, ProgramInitializing)
+    runActor collA collisionActorF (moveA, canonA, statusBarA, keys) (Nothing, Nothing, undefined)
+    runActor canonA canonActorF (hg3d, screenA, musicA, collA, keys) (undefined, undefined, undefined)
+    runActor moveA movementActorF (hg3d, screenA, musicA, collA, keys) (0, undefined, [])
+    runActor screenA gameScreenActorF (hg3d, moveA, canonA, collA, musicA, flyingA, statusBarA) (undefined, undefined, ProgramInitializing)
     runActor keyA keyInputActorF (hg3d, screenA) (undefined, [])
 
-    -- generating messages to keep game rolling
-    forkIO $ forever $ do
-        sendMsg keyA PollKeys
-        sendMsg screenA MovementCycle
-        sleepFor (msecT 15)
-        return ()
+    let cycleLoop n m = do
+            if n == 0 
+                then sendMsg screenA SlowCycle
+                else return ()
+            sendMsg keyA PollKeys
+            sendMsg screenA FastCycle
+            sleepFor (msecT 30)
+            cycleLoop (if n == 0 then m else n - 1) m
+
+    forkIO $ cycleLoop 0 3
 
     -- start with game logic by starting first screen
     sendMsg screenA StartProgram

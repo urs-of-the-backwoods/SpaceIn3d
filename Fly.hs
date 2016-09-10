@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Fly where
+module Fly (
+        flyingActorF
+    ) where
 
 import HGamer3D
 

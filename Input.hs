@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Input where
+module Input (
+        keyInputActorF
+    ) where
 
 import HGamer3D
 
@@ -30,9 +32,19 @@ import Actor
 
 -- KEY INPUT ACTOR
 -- ---------------
+-- single keypresses are directly send to screenA
+-- polling checks in intervals on status of pressed keys, to be sent to screenA as a list
 
 type KiaR = (HG3D, Actor)
 type KiaS = (Var [KeyEvent], [T.Text])
+
+handleKey :: Actor -> Var [KeyEvent] -> KeyEvent -> IO ()
+handleKey screenA kevts evt = do
+    case evt of
+        KeyDown _ _ k -> sendMsg screenA (SingleKey k)
+        _ -> return ()
+    updateVar kevts (\l -> (l ++ [evt], ()))
+
 
 keyInputActorF :: Message -> ReaderStateIO KiaR KiaS ()
 keyInputActorF msg = do
@@ -44,9 +56,8 @@ keyInputActorF msg = do
 
         InitActor -> do
             keyevts' <- liftIO $ makeVar []
-            let handleKey k = updateVar keyevts' (\l -> (k : l, ()))
             ieh <- liftIO $ newE hg3d [ctInputEventHandler #: DefaultEventHandler, ctKeyEvent #: NoKeyEvent]
-            liftIO $ registerCallback hg3d ieh ctKeyEvent handleKey
+            liftIO $ registerCallback hg3d ieh ctKeyEvent (handleKey screenA keyevts')
             put (keyevts', keysdown) >> return ()
 
         PollKeys -> do
@@ -59,7 +70,6 @@ keyInputActorF msg = do
 
                         KeyUp _ _ k -> do
                             let kd' = filter (\k' -> k' /= k) kd
-                            liftIO $ sendMsg screenA (SingleKey k)
                             return kd'
                 ) keysdown (reverse keys)
 

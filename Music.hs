@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Music where
+module Music (
+        musicActorF
+    ) where
 
 import HGamer3D
 

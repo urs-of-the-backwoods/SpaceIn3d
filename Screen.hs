@@ -1,6 +1,8 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Screen where
+module Screen (
+        gameScreenActorF
+    ) where
 
 import HGamer3D
 
@@ -31,16 +33,16 @@ import Actor
 
 -- SCREEN ACTOR
 -- ------------
+-- screenA needs to be fast to be repsonsive to single keys
+-- 
 
-data GameState = ProgramInitializing | InitScreen | BuildField | PlayGame | Flying | FinalScore deriving (Eq, Ord, Show)
-
-type GsaR = (HG3D, Actor, Actor, Actor, Actor)
+type GsaR = (HG3D, Actor, Actor, Actor, Actor, Actor, Actor)
 type GsaS = ((Entity, Entity, Entity, Entity, Entity), T.Text, GameState)
 
 gameScreenActorF :: Message -> ReaderStateIO GsaR GsaS ()
 gameScreenActorF msg = do
 
-    (hg3d, moveA, musicA, flyingA, statusBarA) <- lift ask
+    (hg3d, moveA, canonA, collA, musicA, flyingA, statusBarA) <- lift ask
     (screenText, name, gameState) <- get
 
     let returnStay = return () 
@@ -65,15 +67,22 @@ gameScreenActorF msg = do
                         then do
                             let (eT1, eT2, eT3, eT4, eName) = screenText
                             name' <- liftIO $ readC eName ctEditText
-                            liftIO $ sendMsg moveA (BuildLevel buildData1)
+                            liftIO $ sendMsg moveA BuildLevel
+                            liftIO $ sendMsg canonA BuildLevel
                             liftIO $ sendMsg musicA StopMusic
                             liftIO $ mapM (\e -> setC e ctScreenRect (Rectangle (-1000) (-1000) 0 0)) [eT1, eT2, eT3, eT4, eName]
-                            put (undefined, name', BuildField) >> return ()
+                            put (undefined, name', BuildField2) >> return ()
                         else returnStay
 
                 _ -> returnStay
 
-        BuildField -> 
+        BuildField2 -> 
+            case msg of
+                BuildDone -> do
+                    returnMoveTo BuildField1
+                _ -> returnStay
+
+        BuildField1 -> 
             case msg of
                 BuildDone -> do
                     liftIO $ sendMsg statusBarA (SetName name)
@@ -87,27 +96,35 @@ gameScreenActorF msg = do
 
             case msg of
 
+                FastCycle -> do
+                    liftIO $ sendMsg canonA FastCycle
+                    liftIO $ sendMsg collA FastCycle
+                    returnStay
+
+                SlowCycle -> do
+                    liftIO $ sendMsg moveA SlowCycle
+                    liftIO $ sendMsg canonA SlowCycle
+                    returnStay
+
                 SingleKey k -> do
                     case k of
                         "Space" -> do
-                            liftIO $ sendMsg moveA Shoot
+                            liftIO $ sendMsg canonA Shoot
                             returnStay
                         "F1" -> liftIO (sendMsg statusBarA (SetMode "paused ...")) >> returnMoveTo Flying
                         "F2" -> liftIO (sendMsg flyingA ResetCamPosition) >> returnStay
                         _ -> returnStay
 
-                MovementCycle -> liftIO (sendMsg moveA MovementCycle) >> returnStay
-
                 KeysPressed keys -> do
                     if ("Left" `elem` keys) && (not ("Right" `elem` keys))
                         then do
-                            liftIO $ sendMsg moveA MoveLeft
+                            liftIO $ sendMsg canonA MoveLeft
                             returnStay
                         else returnStay
 
                     if ("Right" `elem` keys) && (not ("Left" `elem` keys)) 
                         then do
-                            liftIO $ sendMsg moveA MoveRight
+                            liftIO $ sendMsg canonA MoveRight
                             returnStay
                         else returnStay
 
