@@ -1,0 +1,1 @@
+aio http://www.hgamer3d.org/component/Stack install --local-bin-path .
