@@ -38,6 +38,7 @@ import Actor
 buildInvadersData :: [BuildElement]
 buildInvadersData = [
         BEOne Ship (0, 100),
+        BERow Boulder (-45, -50) 40 4,
         BERow (Invader 3) (-60, 85) 15 11,
         BERow (Invader 2) (-60, 70) 15 11,
         BERow (Invader 2) (-60, 55) 15 11,
@@ -45,128 +46,102 @@ buildInvadersData = [
         BERow (Invader 1) (-60, 25) 15 11
     ]
 
-type MoaR = (HG3D, Actor, Actor, Actor, Keys)
-type MoaS = (Int, MVar GameData, [Unique])
+type MoaR = (HG3D, Actor, Actor, Actor, Actor, Actor, Keys)
+type MoaS = (Int)
 
 mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
 
 movementActorF :: Message -> ReaderStateIO MoaR MoaS ()
 movementActorF m = do
 
-    (hg3d, screenA, musicA, collA, keys) <- lift ask
+    (hg3d, moveA, screenA, musicA, collA, statusA, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
-    (c, lastGameData, colls) <- get
---    liftIO $ print $ length colls
+    (c) <- get
 
     case m of
 
-        Collision iid -> put (c, lastGameData, iid : colls)
-
-        InitActor -> do
-            mv <- liftIO $ newEmptyMVar
-            put (c, mv, colls)
+        InitActor -> return ()
 
         BuildLevel -> do
-            createLevel buildInvadersData
-            liftIO  $ sendMsg screenA BuildDone
+            gameData <- createLevel buildInvadersData
+            liftIO $ sendMsg screenA (ActualInvaderData gameData)
+            liftIO $ sendMsg screenA BuildDone
             return ()
 
-        SlowCycle -> do
-            -- try to get result from last run
+        MoveStep gameData colls -> do
             let moves = c `div` nWait + (movesRightLeft `div` 2) -- start in the middle 
             let bMove = (c `mod` nWait == 0) && ((c `div` nWait) < (( 2 * movesRightLeft + 2 ) * movesDown) ) 
             let move = moves `mod` (2 * movesRightLeft + 2)
-            put (c + 1, lastGameData, colls)
+            put (c + 1)
 
             if bMove 
                 then do
-                    mbGameData <- liftIO $ tryTakeMVar lastGameData
-                    case mbGameData of
-                        Nothing -> liftIO (print "lost cycle") >> return ()
-                        Just gameData -> do
-                            put (c + 1, lastGameData, [])
-                            liftIO $ forkIO $ doOneRun keys collA musicA lastGameData gameData colls move moves
---                          liftIO $ doOneRun keys collA musicA lastGameData gameData colls move moves
-                            return ()
-                else return ()
+                    liftIO $ doOneRun keys statusA screenA musicA gameData colls move moves
+                    return ()
+                else do
+                    liftIO $ removeColls keys statusA screenA musicA gameData colls move moves
+                    return ()
 
         _ -> return ()
 
 
-doOneRun :: Keys -> Actor -> Actor -> MVar GameData -> GameData -> [Unique] -> Int -> Int -> IO ()
-doOneRun keys collA musicA lastGameData gameData colls move moves = do
+removeColls :: Keys -> Actor -> Actor -> Actor -> GameData -> [Unique] -> Int -> Int -> IO ()
+removeColls keys statusA screenA musicA gameData colls move moves = do
 
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
 
-    -- general movement
     gameData' <- mapM (\(nodeType, nodeData) -> do
                         nodeData' <- case nodeType of
-                            -- invaders stepping
                             (Invader _) -> do 
                                 let i = nodeData ! kuni
                                 if i `elem` (colls) 
                                     then do
                                         sendMsg musicA PlayExplosion
-                                        let nodeData' = deactivateInvader nodeData kpos
+                                        nodeData' <- liftIO $ deactivateInvader statusA nodeType nodeData kpos
+                                        liftIO $ moveNode keys nodeData' (nodeData' ! kpos)
+                                        return nodeData'
+                                    else return nodeData
+                            _ -> return nodeData
+                        return (nodeType, nodeData')
+                        ) gameData
+
+    sendMsg screenA $ ActualInvaderData gameData'
+
+
+doOneRun :: Keys -> Actor -> Actor -> Actor -> GameData -> [Unique] -> Int -> Int -> IO ()
+doOneRun keys statusA screenA musicA gameData colls move moves = do
+
+    let (kent, kdim, kpos, khits, kanim, kuni) = keys
+
+    gameData' <- mapM (\(nodeType, nodeData) -> do
+                        nodeData' <- case nodeType of
+                            (Invader _) -> do 
+                                let i = nodeData ! kuni
+                                if i `elem` (colls) 
+                                    then do
+                                        sendMsg musicA PlayExplosion
+                                        nodeData' <- liftIO $ deactivateInvader statusA nodeType nodeData kpos
                                         liftIO $ moveNode keys nodeData' (nodeData' ! kpos)
                                         return nodeData'
                                     else invaderMove keys nodeData move
                             _ -> return nodeData
                         return (nodeType, nodeData')
                         ) gameData
+    let gameData'' = gameData'
 
-    -- pixel animation
-    (gameData'', _) <- mapAccumLM (\(nodeType, nodeData) (nt, nd) -> case nodeType of
-                (Invader _) -> do
-                    let ai = nodeData ! kanim
-                    let ai' = getCurrentAnimation ai moves
-                    let nodeData' = setData kanim ai' nodeData
-                    return ((nodeType, nodeData'), (nodeType, nodeData')) -- set acc to nodeData of Invader
+    sendMsg screenA $ ActualInvaderData gameData''
 
-                PixelA -> do
-                    let ai = nd ! kanim         -- accu, this is the previous Invader node info!
-                    if aiSwapNow ai
-                        then do
-                            let (x, y) = nodeData ! kpos
-                            case aiType ai of
-                                PixelA -> setC (nodeData ! kent) ctPosition $ relativePosFromPixelPos (nd ! kdim) (x, y)
-                                PixelB -> setC (nodeData ! kent) ctPosition (Vec3 (-1000.0) 0 0)
-                                _ -> return ()
-                        else return ()
-                    return ((nodeType, nodeData), (nt, nd))
-
-                PixelB ->  do
-                    let ai = nd ! kanim         -- accu, this is the previous Invader node info!
-                    if aiSwapNow ai
-                        then do
-                            let (x, y) = nodeData ! kpos
-                            case aiType ai of
-                                PixelB -> setC (nodeData ! kent) ctPosition $ relativePosFromPixelPos (nd ! kdim) (x, y)
-                                PixelA -> setC (nodeData ! kent) ctPosition (Vec3 (-1000.0) 0 0)
-                                _ -> return ()
-                        else return ()
-                    return ((nodeType, nodeData), (nt, nd))
-
-                _ -> return ((nodeType, nodeData), (nt, nd)) -- noch changes
-
-            ) (undefined, undefined) gameData'
-
-    sendMsg collA $ ActualInvaderData gameData''
-    putMVar lastGameData gameData''
-
-
-createLevel :: [BuildElement] -> ReaderStateIO MoaR MoaS ()
+createLevel :: [BuildElement] -> ReaderStateIO MoaR MoaS GameData
 createLevel bd = do
 
-    (hg3d, screenA, musicA, collA, keys) <- lift ask
+    (hg3d, moveA, screenA, musicA, collA, statusA, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
-    (cycles, lastGameData, colls) <- get
+    (cycles) <- get
     tree <- liftIO $ gameDataFromBuildData hg3d keys bd
-    liftIO $ putMVar lastGameData tree
-    put (cycles, lastGameData, colls)
-    return ()
+    put (cycles)
+    return tree
 
-nWait = 4 :: Int
+nWait = 12 :: Int
 movesRightLeft = 10 :: Int
 movesDown = 15 :: Int
 
@@ -183,8 +158,11 @@ invaderMove keys nd move = do
                             then moveNode keys nd (-2, 0) 
                             else moveNode keys nd (0, -5)
 
-
-deactivateInvader :: NodeData -> KPos -> NodeData
-deactivateInvader nd kpos = setData kpos (-1000, 0) nd
-
+deactivateInvader :: Actor -> NodeType -> NodeData -> KPos -> IO NodeData
+deactivateInvader statusA nt nd kpos = do
+    case nt of
+        Invader 1 -> sendMsg statusA (AddCount 5)   -- each hit is done twice, before invaders removed
+        Invader 2 -> sendMsg statusA (AddCount 10)
+        Invader 3 -> sendMsg statusA (AddCount 15)
+    return $ setData kpos (-1000, 0) nd
 

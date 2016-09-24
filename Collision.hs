@@ -35,35 +35,23 @@ import Actor
 -- ---------------
 -- computes collisions and sends back info to other actors 
 
-type CoaR = (Actor, Actor, Actor, Keys)
-type CoaS = (Maybe GameData, Maybe GameData, MVar ())   -- as soon as both are filled, we are computing a new collision
+type CoaR = (Actor, Keys)
+type CoaS = ()  
 
 mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
 
 collisionActorF :: Message -> ReaderStateIO CoaR CoaS ()
 collisionActorF msg = do
 
-    (moveA, canonA, statusA, keys) <- lift ask
-    (invaderData, canonData, busyFlag) <- get
+    (screenA, keys) <- lift ask
 
     case msg of
 
-        InitActor -> do
-            mv <- liftIO $ newMVar ()
-            put (invaderData, canonData, mv)
+        InitActor -> return ()
 
-        FastCycle -> case (invaderData, canonData) of
-            (Just invaderData', Just canonData') -> do
-                mBF <- liftIO $ tryTakeMVar busyFlag
-                case mBF of
-                    Just () -> do
-                        liftIO $ forkIO $ runCollisionDetection keys invaderData' canonData' busyFlag moveA canonA statusA
-                        return ()
-                    Nothing -> return ()
-            _ -> return ()
-
-        ActualInvaderData invaderData' -> put (Just invaderData', canonData, busyFlag)
-        ActualCanonData canonData' -> put (invaderData, Just canonData', busyFlag)
+        CollisionStep canonData invaderData -> do
+            liftIO $ runCollisionDetection keys invaderData canonData screenA
+            return ()
 
 
 isCollision :: Keys -> NodeData -> NodeData -> Bool
@@ -74,34 +62,30 @@ isCollision keys i s = let
     (x', y') = s ! kpos
     (w', h') = (diWidth (s ! kdim), diHeight (s ! kdim))
 
-    xmin = min (x - w `div` 2) (x' - w' `div` 2)
-    xmax = max (x + w `div` 2) (x' + w' `div` 2)
-    ymin = min (y - h `div` 2) (y' - h' `div` 2)
-    ymax = max (y + h `div` 2) (y' + h' `div` 2)
+    xmin = min (x - (w `div` 2)) (x' - (w' `div` 2))
+    xmax = max (x + (w `div` 2)) (x' + (w' `div` 2))
+    ymin = min (y - abs (h `div` 2)) (y' - abs (h' `div` 2))
+    ymax = max (y + abs (h `div` 2)) (y' + abs (h' `div` 2))
 
     wg = xmax - xmin
     hg = ymax - ymin
 
-    coll = wg <= (w' + w) && hg <= (h' + h)
+    coll = (wg + 1) <= (w' + w) && (hg - 3) <= (h' + h)
     in coll
 
-runCollisionDetection :: Keys -> GameData -> GameData -> MVar () -> Actor -> Actor -> Actor -> IO ()
-runCollisionDetection keys invaderData canonData busyFlag moveA canonA statusA = do
+removeDuplicates = foldr (\x seen -> if x `elem` seen then seen else x : seen) []
+
+runCollisionDetection :: Keys -> GameData -> GameData -> Actor -> IO ()
+runCollisionDetection keys invaderData canonData screenA = do
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     let invs = filter (\(nt, nd) -> case nt of
             (Invader _) -> let (x, y) = nd ! kpos in if x < (-500) then False else True
+            Boulder -> let (x, y) = nd ! kpos in if x < (-500) then False else True
             _ -> False
             ) (flatten invaderData)
     let shots = filter (\(nt, nd) -> nt == Shot) (flatten canonData)
     let cols = [ (s ! kuni, i ! kuni) | (_, s) <- shots, (_, i) <- invs, isCollision keys i s]
+    let cols' = removeDuplicates $ concatMap (\(a, b) -> [a, b]) cols
 
-    if length cols > 0 
-        then do
-            (mapM ( \(sid, iid) -> do
-                sendMsg canonA $ Collision sid
-                sendMsg moveA $ Collision iid
-                ) cols) >> return ()
-        else return ()
-
-    putMVar busyFlag ()
+    sendMsg screenA $ ActualCollData cols'
     return ()

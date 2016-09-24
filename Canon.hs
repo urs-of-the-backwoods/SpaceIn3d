@@ -36,14 +36,13 @@ import Actor
 
 buildCanonData :: [BuildElement]
 buildCanonData = [
-        BERow Boulder (-45, -50) 40 4,
         BEOne Canon (0, -65),
         BERow Canon (-60, -80) 15 2,
         BERow Shot (-1000, 0) 5 5
     ]
 
 type CaaR = (HG3D, Actor, Actor, Actor, Keys)
-type CaaS = (PixelPos, PixelPos, GameData)
+type CaaS = (PixelPos, PixelPos, Bool)
 
 mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
 
@@ -52,78 +51,79 @@ canonActorF m = do
 
     (hg3d, screenA, musicA, collA, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
-    (canonPos, canonMove, gameData) <- get
+    (canonPos, canonMove, shootNow) <- get
 
     case m of
-        Collision sid -> do
-            gameData' <- mapM (\(nodeType, nodeData) -> do
-                nodeData' <- case nodeType of
-                    Shot -> do
-                        let i = nodeData ! kuni
-                        if i == sid
-                            then return (deactivateShot nodeData kpos)
-                            else return nodeData
-                    _ -> return nodeData
-                return (nodeType, nodeData')
-                ) gameData
-            put (canonPos, canonMove, gameData') 
 
         BuildLevel -> do
-            createCanonLevel buildCanonData
+            gameData <- createCanonLevel buildCanonData
+            liftIO $ sendMsg screenA $ ActualCanonData gameData
             liftIO  $ sendMsg screenA BuildDone
             return ()
 
-        MoveLeft -> put (canonPos, (-1, 0), gameData)
-        MoveRight ->  put (canonPos, (1, 0), gameData)
+        MoveLeft -> do
+            let (x, y) = canonPos
+            if x > -63
+                then put (canonPos, (-1, 0), shootNow)
+                else return ()
 
-        Shoot -> do
-            bulletAvailable <- shoot
-            if bulletAvailable 
-                then liftIO $ sendMsg musicA PlayShot
-                else liftIO $ sendMsg musicA PlayNoShot
-            return ()
+        MoveRight -> do
+            let (x, y) = canonPos
+            if x < 95
+                then put (canonPos, (1, 0), shootNow)
+                else return ()
 
-        FastCycle -> do
+        Shoot -> put (canonPos, canonMove, True) >> return ()
 
-            -- canon movement
+        CanonStep gameData colls -> do
+
             let (x, y) = canonPos
             let (x', y') = canonMove
 
-            -- general movement
-            gameData' <- mapM (\(nodeType, nodeData) -> do
+            gameData' <- if shootNow
+                            then do
+                                (bulletAvailable, gd) <- shoot gameData
+                                if bulletAvailable 
+                                    then liftIO $ sendMsg musicA PlayShot
+                                    else liftIO $ sendMsg musicA PlayNoShot
+                                return gd
+                            else return gameData
+
+            gameData'' <- mapM (\(nodeType, nodeData) -> do
                 nodeData' <- case nodeType of
                     Canon -> moveNode' nodeData canonMove
                     Shot -> do
-                        nd <- moveNode' nodeData (0, 3)
-                        let (x, y) = nd ! kpos
-                        if y > 100 
-                            then return (deactivateShot nd kpos)
-                            else return nd
+                        let i = nodeData ! kuni
+                        if i `elem` colls
+                            then return (deactivateShot nodeData kpos)
+                            else do
+                                nd <- moveNode' nodeData (0, 3)
+                                let (x, y) = nd ! kpos
+                                if y > 100 
+                                    then return (deactivateShot nd kpos)
+                                    else return nd
                     _ -> return nodeData
                 return (nodeType, nodeData')
-                ) gameData
+                ) gameData'
 
-            liftIO $ sendMsg collA $ ActualCanonData gameData'
-            put ((x+x', y), (0,0), gameData') 
+            liftIO $ sendMsg screenA $ ActualCanonData gameData''
+            put ((x+x', y), (0,0), False) 
 
         _ -> return ()
 
-createCanonLevel :: [BuildElement] -> ReaderStateIO CaaR CaaS ()
+createCanonLevel :: [BuildElement] -> ReaderStateIO CaaR CaaS GameData
 createCanonLevel bd = do
 
     (hg3d, screenA, musicA, collA, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     tree <- liftIO $ gameDataFromBuildData hg3d keys bd
-    put ((0, -65), (0, 0), tree)
-    return ()
+    return tree
 
 moveNode' :: NodeData -> PixelPos -> ReaderStateIO CaaR CaaS NodeData
 moveNode' nd p = do
     (hg3d, screenA, musicA, collA, keys) <- lift ask
     nd <- liftIO $ moveNode keys nd p
     return nd
-
--- shooting
 
 isActiveShot :: NodeData -> KPos -> Bool
 isActiveShot nd k = let
@@ -133,27 +133,24 @@ isActiveShot nd k = let
 deactivateShot :: NodeData -> KPos -> NodeData
 deactivateShot nd kpos = setData kpos (-1000, 0) nd
 
-shoot :: ReaderStateIO CaaR CaaS Bool
-shoot = do
+shoot :: GameData -> ReaderStateIO CaaR CaaS (Bool, GameData)
+shoot gameData = do
     (hg3d, screenA, musicA, collA, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
-    (canonPos, canonMove, gameData) <- get
+    (canonPos, canonMove, shootNow) <- get
     let (x, y) = canonPos
     let shootPos = (x, y + 5)
     let ((found', nodeData'), gameData') = Tr.mapAccumL (\(found, nd) (nodeType, nodeData) -> if (not found && nodeType == Shot)
                         then
                             if not (isActiveShot nodeData kpos)
                                 then ((True, nodeData), (Shot, setData kpos shootPos nodeData))
-                                else ((False, undefined), (nodeType, nodeData))
+                                else ((found, nd), (nodeType, nodeData))
                         else ((found, nd), (nodeType, nodeData))
                   ) (False, undefined) gameData
 
     if found'
         then do
             liftIO $ setC (nodeData' ! kent) ctPosition $ posFromPixelPos (nodeData' ! kdim) shootPos
-            put (canonPos, canonMove, gameData')
-        else return ()
-
-    return found'
-
+            return (True, gameData')
+        else return (False, gameData)
 

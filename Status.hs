@@ -32,13 +32,13 @@ import Actor
 -- ----------------
 
 type SbaR = HG3D
-type SbaS = (Entity, Entity, Entity)
+type SbaS = (Int, Entity, Entity, Entity)
 
 statusBarActorF :: Message -> ReaderStateIO SbaR SbaS ()
 statusBarActorF msg = do
 
     hg3d <- lift ask
-    (textLeft, textMiddle, textRight) <- get
+    (count, textLeft, textMiddle, textRight) <- get
 
     let setY y' e = do
             r@(Rectangle x y w h) <- readC e ctScreenRect
@@ -63,13 +63,14 @@ statusBarActorF msg = do
                 ctScreenRect #: Rectangle 590 (-1000) 100 25
                 ]
 
-            put (eL, eM, eR)
+            put (count, eL, eM, eR)
             return ()
 
         DisplayStatus -> liftIO (mapM (\e -> setY 10 e) [textLeft, textMiddle, textRight]) >> return ()
         HideStatus -> liftIO (mapM (\e -> setY (-1000) e) [textLeft, textMiddle, textRight]) >> return ()
         SetName name -> liftIO (setC textLeft ctText ("hero: " `T.append` name)) >> return ()
-        SetCount count -> liftIO (setC textMiddle ctText (T.pack ("count: " ++ (show count)))) >> return ()
+        SetCount count' -> put (count', textLeft, textMiddle, textRight) >> liftIO (setC textMiddle ctText (T.pack ("count: " ++ (show count)))) >> return ()
+        AddCount count' -> put (count + count', textLeft, textMiddle, textRight) >> liftIO (setC textMiddle ctText (T.pack ("count: " ++ (show (count + count'))))) >> return ()
         SetMode mode -> liftIO (setC textRight ctText mode)  >> return ()
 
         _ -> return ()

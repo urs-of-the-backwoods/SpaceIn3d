@@ -35,6 +35,7 @@ import Screen
 import Status
 import Fly
 import Collision
+import Animate
 
 
 -- MAIN PROGRAM
@@ -49,16 +50,17 @@ gameLogic hg3d = do
     cam <- initializeCam hg3d
 
     -- create actors
-    [moveA, canonA, collA, flyingA, musicA, screenA, keyA, statusBarA] <- mapM (const newActor) [1..8]
+    [moveA, canonA, collA, flyingA, musicA, screenA, keyA, statusBarA, animateA] <- mapM (const newActor) [1..9]
 
     -- interconnect and run them
-    runActor statusBarA statusBarActorF hg3d (undefined, undefined, undefined)
+    runActor animateA animateActorF (hg3d, keys) (0, undefined)
+    runActor statusBarA statusBarActorF hg3d (0, undefined, undefined, undefined)
     runActor flyingA flyingActorF (hg3d, cam) (undefined, undefined)
     runActor musicA musicActorF hg3d (undefined, undefined, undefined, undefined)
-    runActor collA collisionActorF (moveA, canonA, statusBarA, keys) (Nothing, Nothing, undefined)
-    runActor canonA canonActorF (hg3d, screenA, musicA, collA, keys) (undefined, undefined, undefined)
-    runActor moveA movementActorF (hg3d, screenA, musicA, collA, keys) (0, undefined, [])
-    runActor screenA gameScreenActorF (hg3d, moveA, canonA, collA, musicA, flyingA, statusBarA) (undefined, undefined, ProgramInitializing)
+    runActor collA collisionActorF (screenA, keys) ()
+    runActor canonA canonActorF (hg3d, screenA, musicA, collA, keys) ((0,-65), (0,0), False)
+    runActor moveA movementActorF (hg3d, moveA, screenA, musicA, collA, statusBarA, keys) (0)
+    runActor screenA gameScreenActorF (hg3d, animateA, moveA, canonA, collA, musicA, flyingA, statusBarA) (undefined, Nothing, Nothing, Nothing, undefined, ProgramInitializing)
     runActor keyA keyInputActorF (hg3d, screenA) (undefined, [])
 
     let cycleLoop n m = do
@@ -70,7 +72,7 @@ gameLogic hg3d = do
             sleepFor (msecT 30)
             cycleLoop (if n == 0 then m else n - 1) m
 
-    forkIO $ cycleLoop 0 3
+    forkIO $ cycleLoop 0 10
 
     -- start with game logic by starting first screen
     sendMsg screenA StartProgram

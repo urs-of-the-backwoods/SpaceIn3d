@@ -1,1 +1,1 @@
-HG3D_RESOURCE_PATH=Media aio Run ./game
+HG3D_RESOURCE_PATH=Media aio Run ./game +RTS -qg -RTS

@@ -44,12 +44,11 @@ data Message = InitActor | StopActor -- intialize and stop actor
              | MoreSpeed | LessSpeed | ZeroSpeed 
              | ResetCamPosition | RestoreCamPosition | SaveCamPosition
              | DisplayStatus | HideStatus | SetName T.Text | SetCount Int | SetMode T.Text -- status bar actor
-             | ActualInvaderData GameData | ActualCanonData GameData -- send to collision detector actor
-             | Collision Unique -- collision detected
+             | ActualInvaderData GameData | ActualCanonData GameData | ActualCollData [Unique] -- send to collision detector actor
+             | CanonStep GameData [Unique] | MoveStep GameData [Unique] | CollisionStep GameData GameData
+             | CacheLevel GameData
+             | AddCount Int
 --             deriving (Show)
-
--- we are going for an actor model with forkIO starting an actor and MVar being 
--- the message passing channel, actors are bigger pieces of logic 
 
 newtype Actor = Actor (MVar Message)
 
