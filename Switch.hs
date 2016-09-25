@@ -101,7 +101,7 @@ gameSwitchActorF switchA msg = do
                             invaders <- liftIO $ gameDataFromBuildData hg3d keys buildInvadersData
                             canons <- liftIO $ gameDataFromBuildData hg3d keys buildCanonData
                             -- start gameloop actors and animation
-                            glA <-  liftIO $ newGameLoopActor hg3d switchA (musicA myActors) sA keys invaders canons
+                            glA <-  liftIO $ newGameLoopActor switchA (musicA myActors) sA keys invaders canons
                             aA <- liftIO $ newAnimateActor keys invaders
                             put (myActors {gameLoopA = glA, animateA = aA, statusBarA = sA}, startScreenText, name', PlayGame) >> return ()
                             -- send data to gameloop actor

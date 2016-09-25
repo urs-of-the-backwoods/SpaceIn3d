@@ -22,14 +22,13 @@ import Actor
 -- -----------
 
 data MyActors = MyActors {
-    gameLoopA :: Actor,
     collA :: Actor,
     musicA :: Actor
 }
 
-newCanonActor :: Actor -> Actor -> Actor -> Keys -> IO Actor
-newCanonActor gameLoopA collA musicA keys = do
-    let myActors = MyActors gameLoopA collA musicA
+newCanonActor :: Actor -> Actor -> Keys -> IO Actor
+newCanonActor collA musicA keys = do
+    let myActors = MyActors collA musicA
     actor <- newActor
     runActor actor canonActorF (myActors, keys) ((0, -65), (0, 0), False)
     return actor
@@ -93,7 +92,7 @@ canonActorF canonA m = do
                 return (nodeType, nodeData')
                 ) gameData'
 
-            liftIO $ sendMsg (gameLoopA myActors) $ ActualCanonData gameData''
+            liftIO $ sendMsg (collA myActors) $ ActualCanonData gameData''
             put ((x+x', y), (0,0), False) 
 
         _ -> return ()

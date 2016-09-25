@@ -23,19 +23,19 @@ import Actor
 -- --------------
 
 data MyActors = MyActors {
-    gameLoopA :: Actor,
+    collA :: Actor,
     musicA :: Actor,
     statusA :: Actor
     }
 
-newMoveActor :: HG3D -> Actor -> Actor -> Actor -> Keys -> IO Actor
-newMoveActor hg3d glA mA sA keys = do
-    let myActors = MyActors glA mA sA
+newMoveActor :: Actor -> Actor -> Actor -> Keys -> IO Actor
+newMoveActor collA mA sA keys = do
+    let myActors = MyActors collA mA sA
     actor <- newActor
-    runActor actor movementActorF (hg3d, myActors, keys) 0
+    runActor actor movementActorF (myActors, keys) 0
     return actor
 
-type MoaR = (HG3D, MyActors, Keys)
+type MoaR = (MyActors, Keys)
 type MoaS = (Int)
 
 mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
@@ -43,7 +43,7 @@ mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
 movementActorF :: Actor -> Message -> ReaderStateIO MoaR MoaS ()
 movementActorF moveA m = do
 
-    (hg3d, myActors, keys) <- lift ask
+    (myActors, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     (c) <- get
 
@@ -86,7 +86,7 @@ removeColls keys myActors gameData colls move moves = do
                         return (nodeType, nodeData')
                         ) gameData
 
-    sendMsg (gameLoopA myActors) $ ActualInvaderData gameData'
+    sendMsg (collA myActors) $ ActualInvaderData gameData'
 
 
 doOneRun :: Keys -> MyActors -> GameData -> [Unique] -> Int -> Int -> IO ()
@@ -110,7 +110,7 @@ doOneRun keys myActors gameData colls move moves = do
                         ) gameData
     let gameData'' = gameData'
 
-    sendMsg (gameLoopA myActors) $ ActualInvaderData gameData''
+    sendMsg (collA myActors) $ ActualInvaderData gameData''
 
 
 nWait = 12 :: Int
@@ -133,8 +133,8 @@ invaderMove keys nd move = do
 deactivateInvader :: Actor -> NodeType -> NodeData -> KPos -> IO NodeData
 deactivateInvader statusA nt nd kpos = do
     case nt of
-        Invader 1 -> sendMsg statusA (AddCount 5)   -- each hit is done twice, before invaders removed
-        Invader 2 -> sendMsg statusA (AddCount 10)
-        Invader 3 -> sendMsg statusA (AddCount 15)
+        Invader 1 -> sendMsg statusA (AddCount 10)   -- each hit is done twice, before invaders removed
+        Invader 2 -> sendMsg statusA (AddCount 20)
+        Invader 3 -> sendMsg statusA (AddCount 30)
     return $ setData kpos (-1000, 0) nd
 

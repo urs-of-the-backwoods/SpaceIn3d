@@ -38,26 +38,26 @@ data MyActors = MyActors {
     collA :: Actor
 }
 
-type GlaR = (HG3D, MyActors)
+type GlaR = MyActors
 type GlaS = (Maybe GameData, Maybe GameData, Maybe [Unique])
 
-newGameLoopActor :: HG3D -> Actor -> Actor -> Actor -> Keys -> GameData -> GameData -> IO Actor
-newGameLoopActor hg3d switchA musicA statusA keys invaders canons = do
+newGameLoopActor :: Actor -> Actor -> Actor -> Keys -> GameData -> GameData -> IO Actor
+newGameLoopActor switchA musicA statusA keys invaders canons = do
 
     actor <- newActor
 
     collA <- newCollisionActor actor keys
-    moveA <- newMoveActor hg3d actor musicA statusA keys
-    canonA <- newCanonActor actor collA musicA keys
+    moveA <- newMoveActor collA musicA statusA keys
+    canonA <- newCanonActor collA musicA keys
 
-    runActor actor gameLoopActorF (hg3d, MyActors moveA canonA collA) (Nothing, Nothing, Just [])
+    runActor actor gameLoopActorF (MyActors moveA canonA collA) (Nothing, Nothing, Just [])
     return actor
 
 
 gameLoopActorF :: Actor -> Message -> ReaderStateIO GlaR GlaS ()
 gameLoopActorF loopA msg = do
 
-    (hg3d, myActors) <- lift ask
+    myActors <- lift ask
     (slotMoveData, slotCanonData, slotCollData) <- get
 
 --    liftIO $ print $ (isJust slotMoveData, isJust slotCanonData, isJust slotCollData)
