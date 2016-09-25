@@ -5,32 +5,20 @@ module Data where
 import HGamer3D
 
 import qualified Data.Text as T
-import Control.Concurrent
-import Control.Monad
-import System.Exit
-import System.Random
-
+import Data.Tree
+import Data.Unique
 import qualified Data.Map as M
 import qualified Data.HMap as HM
-import qualified Data.Text as T
-import Data.Tree
-import Data.Maybe
-import Data.Unique
 
-import qualified Data.Data as D
-import qualified Data.Traversable as Tr
-import qualified Data.Foldable as Fd
-import Control.Monad.Trans.Reader
-import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
+import System.Random
 
 import Debug.Trace
 
-
 -- state game is in (which screen, mode, ...)
 
-data GameState = ProgramInitializing | InitScreen | BuildField2 | BuildField1 | PlayGame | Flying | FinalScore deriving (Eq, Ord, Show)
+data GameState = ProgramInitializing | InitScreen | PlayGame | Flying | FinalScore deriving (Eq, Ord, Show)
 
 -- main data structure for game content - the game data tree
 -- ---------------------------------------------------------

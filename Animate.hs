@@ -1,32 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Animate (
-        animateActorF
+        newAnimateActor
     ) where
 
 import HGamer3D
 
-import qualified Data.Text as T
-import Control.Concurrent
-import Control.Monad
-import System.Exit
-import System.Random
-
-import qualified Data.Map as M
-import qualified Data.HMap as HM
-import qualified Data.Text as T
-import Data.Tree
-import Data.Maybe
-import qualified Data.Data as D
 import qualified Data.Traversable as Tr
-import qualified Data.Foldable as Fd
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
-
-import Data.Unique
-import Debug.Trace
 
 import Data
 import Actor
@@ -35,13 +19,19 @@ import Actor
 -- ANIMATION ACTOR
 -- ---------------
 
-type AnaR = (HG3D, Keys)
+type AnaR = Keys
 type AnaS = (Int, GameData)
 
 mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
 
-animateActorF :: Message -> ReaderStateIO AnaR AnaS ()
-animateActorF msg = do
+newAnimateActor :: Keys -> GameData -> IO Actor
+newAnimateActor keys gameData = do
+    actor <- newActor
+    runActor actor animateActorF keys (0, gameData)
+    return actor
+
+animateActorF :: Actor -> Message -> ReaderStateIO AnaR AnaS ()
+animateActorF animA msg = do
 
     (count, gameData) <- get
     put (count + 1, gameData)
@@ -57,7 +47,7 @@ animateActorF msg = do
 animateLevel :: ReaderStateIO AnaR AnaS ()
 animateLevel = do
 
-    (hg3d, keys) <- lift ask
+    keys <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     (count, gameData) <- get
 

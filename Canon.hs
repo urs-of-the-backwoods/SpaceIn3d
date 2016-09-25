@@ -1,31 +1,18 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Canon (
-    canonActorF
+    newCanonActor
 ) where
 
 import HGamer3D
 
 import qualified Data.Text as T
 import Control.Concurrent
-import Control.Monad
-import System.Exit
-import System.Random
-
-import qualified Data.Map as M
-import qualified Data.HMap as HM
-import qualified Data.Text as T
-import Data.Tree
-import Data.Maybe
-import qualified Data.Data as D
 import qualified Data.Traversable as Tr
-import qualified Data.Foldable as Fd
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
-
-import Debug.Trace
 
 import Data
 import Actor
@@ -34,32 +21,32 @@ import Actor
 -- CANON ACTOR
 -- -----------
 
-buildCanonData :: [BuildElement]
-buildCanonData = [
-        BEOne Canon (0, -65),
-        BERow Canon (-60, -80) 15 2,
-        BERow Shot (-1000, 0) 5 5
-    ]
+data MyActors = MyActors {
+    gameLoopA :: Actor,
+    collA :: Actor,
+    musicA :: Actor
+}
 
-type CaaR = (HG3D, Actor, Actor, Actor, Keys)
+newCanonActor :: Actor -> Actor -> Actor -> Keys -> IO Actor
+newCanonActor gameLoopA collA musicA keys = do
+    let myActors = MyActors gameLoopA collA musicA
+    actor <- newActor
+    runActor actor canonActorF (myActors, keys) ((0, -65), (0, 0), False)
+    return actor
+
+type CaaR = (MyActors, Keys)
 type CaaS = (PixelPos, PixelPos, Bool)
 
 mapAccumLM f a xs = runStateT (Tr.mapM (StateT . f) xs) a
 
-canonActorF :: Message -> ReaderStateIO CaaR CaaS ()
-canonActorF m = do
+canonActorF :: Actor -> Message -> ReaderStateIO CaaR CaaS ()
+canonActorF canonA m = do
 
-    (hg3d, screenA, musicA, collA, keys) <- lift ask
+    (myActors, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     (canonPos, canonMove, shootNow) <- get
 
     case m of
-
-        BuildLevel -> do
-            gameData <- createCanonLevel buildCanonData
-            liftIO $ sendMsg screenA $ ActualCanonData gameData
-            liftIO  $ sendMsg screenA BuildDone
-            return ()
 
         MoveLeft -> do
             let (x, y) = canonPos
@@ -84,8 +71,8 @@ canonActorF m = do
                             then do
                                 (bulletAvailable, gd) <- shoot gameData
                                 if bulletAvailable 
-                                    then liftIO $ sendMsg musicA PlayShot
-                                    else liftIO $ sendMsg musicA PlayNoShot
+                                    then liftIO $ sendMsg (musicA myActors) PlayShot
+                                    else liftIO $ sendMsg (musicA myActors) PlayNoShot
                                 return gd
                             else return gameData
 
@@ -106,22 +93,14 @@ canonActorF m = do
                 return (nodeType, nodeData')
                 ) gameData'
 
-            liftIO $ sendMsg screenA $ ActualCanonData gameData''
+            liftIO $ sendMsg (gameLoopA myActors) $ ActualCanonData gameData''
             put ((x+x', y), (0,0), False) 
 
         _ -> return ()
 
-createCanonLevel :: [BuildElement] -> ReaderStateIO CaaR CaaS GameData
-createCanonLevel bd = do
-
-    (hg3d, screenA, musicA, collA, keys) <- lift ask
-    let (kent, kdim, kpos, khits, kanim, kuni) = keys
-    tree <- liftIO $ gameDataFromBuildData hg3d keys bd
-    return tree
-
 moveNode' :: NodeData -> PixelPos -> ReaderStateIO CaaR CaaS NodeData
 moveNode' nd p = do
-    (hg3d, screenA, musicA, collA, keys) <- lift ask
+    (myActors, keys) <- lift ask
     nd <- liftIO $ moveNode keys nd p
     return nd
 
@@ -135,7 +114,7 @@ deactivateShot nd kpos = setData kpos (-1000, 0) nd
 
 shoot :: GameData -> ReaderStateIO CaaR CaaS (Bool, GameData)
 shoot gameData = do
-    (hg3d, screenA, musicA, collA, keys) <- lift ask
+    (myActors, keys) <- lift ask
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
     (canonPos, canonMove, shootNow) <- get
     let (x, y) = canonPos

@@ -4,29 +4,16 @@ module Actor where
 
 import HGamer3D
 
+import Data
+
 import qualified Data.Text as T
 import Control.Concurrent
-import Control.Monad
-import System.Exit
-import System.Random
-
-import qualified Data.Map as M
-import qualified Data.HMap as HM
-import qualified Data.Text as T
-import Data.Tree
-import Data.Maybe
-import qualified Data.Data as D
-import qualified Data.Traversable as Tr
-import qualified Data.Foldable as Fd
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 import Data.Unique
 
-import Debug.Trace
-
-import Data
 
 -- ACTORS
 -- ------
@@ -59,11 +46,11 @@ newActor = do
 
 type ReaderStateIO r s a = StateT s (ReaderT r IO) a
 
-runActor :: Actor -> (Message -> ReaderStateIO r s () ) -> r -> s -> IO ()
+runActor :: Actor -> (Actor -> Message -> ReaderStateIO r s () ) -> r -> s -> IO ()
 runActor a@(Actor mv) f ri si = do
     let loop mv s = do
             msg <- takeMVar mv
-            (_, s') <- runReaderT (runStateT (f msg) s) ri
+            (_, s') <- runReaderT (runStateT (f a msg) s) ri
             loop mv s'
     forkIO $ loop mv si
     sendMsg a InitActor

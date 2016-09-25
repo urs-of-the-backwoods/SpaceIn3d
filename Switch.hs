@@ -1,186 +1,190 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Switch (
-        gameSwitchActorF
+        newSwitchActor
     ) where
 
 import HGamer3D
 
+import Data
+import Actor
+import Input
+import GameLoop
+import Music
+import Status
+import Fly
+import Animate
+
+
 import qualified Data.Text as T
 import Control.Concurrent
 import Control.Monad
-import System.Exit
-import System.Random
-
-import qualified Data.Map as M
-import qualified Data.HMap as HM
-import qualified Data.Text as T
-import Data.Tree
-import Data.Maybe
-import qualified Data.Data as D
-import qualified Data.Traversable as Tr
-import qualified Data.Foldable as Fd
+import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 
-import Debug.Trace
-
-import Data
-import Data.Unique
-
-import Actor
-
-
--- SCREEN ACTOR
+-- SWITCH ACTOR
 -- ------------
 -- switchA needs to be fast to be repsonsive to single keys
 -- 
 
-type GsaR = (HG3D, Actor, Actor, Actor, Actor, Actor, Actor, Actor)
-type GsaS = ((Entity, Entity, Entity, Entity, Entity), Maybe GameData, Maybe GameData, Maybe [Unique], T.Text, GameState)
+data MyActors = MyActors {
+    keyA :: Actor,
+    musicA :: Actor,
+    gameLoopA :: Actor,
+    animateA :: Actor,
+    flyingA :: Actor,
+    statusBarA :: Actor
+}
 
-gameSwitchActorF :: Message -> ReaderStateIO GsaR GsaS ()
-gameSwitchActorF msg = do
+type GsaR = (HG3D)
+type GsaS = (MyActors, TextData, T.Text, GameState)
 
-    (hg3d, animateA, moveA, canonA, collA, musicA, flyingA, statusBarA) <- lift ask
-    (startScreenText, slotMoveData, slotCanonData, slotCollData, name, gameState) <- get
+newSwitchActor :: HG3D -> IO Actor
+newSwitchActor hg3d = do
+    actor <- newActor
+    runActor actor gameSwitchActorF hg3d (MyActors undefined undefined undefined undefined undefined undefined, undefined, undefined, ProgramInitializing)
+    return actor 
+
+gameSwitchActorF :: Actor -> Message -> ReaderStateIO GsaR GsaS ()
+gameSwitchActorF switchA msg = do
+
+    hg3d <- lift ask
+    (myActors, startScreenText, name, gameState) <- get
 
     let returnStay = return () 
-    let returnMoveTo state = put (startScreenText, slotMoveData, slotCanonData, slotCollData, name, state) >> return ()
+    let returnMoveTo state = put (myActors, startScreenText, name, state) >> return ()
 
 
-    case msg of
+    case gameState of
 
-        ActualCanonData canonData -> put (startScreenText, slotMoveData, Just canonData, slotCollData, name, gameState) >> return ()
-        ActualInvaderData moveData -> put (startScreenText, Just moveData, slotCanonData, slotCollData, name, gameState) >> return ()
-        ActualCollData collData -> put (startScreenText, slotMoveData, slotCanonData, Just collData, name, gameState) >> return ()
+        ProgramInitializing -> 
+            case msg of
+                StartProgram -> do
+                    -- initialize music, keys and start screen
+                    mA <- liftIO $ newMusicActor hg3d
+                    kA <- liftIO $ newKeyActor hg3d switchA
+                    startScreenText' <- liftIO $ showInitScreen hg3d
+                    liftIO $ sendMsg mA StartMusic
+                    -- create hearbeat of program
+                    let cycleLoop n m = do
+                            if n == 0 
+                                then sendMsg switchA SlowCycle
+                                else return ()
+                            sendMsg kA PollKeys
+                            sendMsg switchA FastCycle
+                            sleepFor (msecT 30)
+                            cycleLoop (if n == 0 then m else n - 1) m
+                    liftIO $ forkIO $ cycleLoop 0 10
 
-        _ -> case gameState of
+                    put (myActors {keyA = kA, musicA = mA}, startScreenText', name, InitScreen)
+                _ -> returnStay
 
-            ProgramInitializing -> 
-                case msg of
-                    StartProgram -> do
-                        (eT1, eT2, eT3, eT4, eName) <- liftIO $ showInitScreen hg3d
-                        liftIO $ sendMsg musicA StartMusic
-                        put ((eT1, eT2, eT3, eT4, eName), slotMoveData, slotCanonData, slotCollData, name, InitScreen) >> return ()
-                    _ -> returnStay
 
-            InitScreen -> 
+        InitScreen -> 
 
-                case msg of
+            case msg of
 
-                    SingleKey k -> do
-                        if k == "Return" 
-                            then do
-                                let (eT1, eT2, eT3, eT4, eName) = startScreenText
-                                name' <- liftIO $ readC eName ctEditText
-                                liftIO $ sendMsg moveA BuildLevel
-                                liftIO $ sendMsg canonA BuildLevel
-                                liftIO $ sendMsg musicA StopMusic
-                                liftIO $ mapM (\e -> setC e ctScreenRect (Rectangle (-1000) (-1000) 0 0)) [eT1, eT2, eT3, eT4, eName]
-                                put (undefined, slotMoveData, slotCanonData, slotCollData, name', BuildField2) >> return ()
-                            else returnStay
+                SingleKey k -> do
+                    if k == "Return" 
+                        then do
+                            -- hide start screen, stop music
+                            name' <- liftIO $ getName startScreenText
+                            liftIO $ hideInitScreen startScreenText
+                            liftIO $ sendMsg (musicA myActors) StopMusic
+                            -- initialize status bar
+                            sA <- liftIO $ newStatusBarActor hg3d 0 name' "building"
+                            -- initialize game data
+                            keys <- liftIO $ genKeys
+                            invaders <- liftIO $ gameDataFromBuildData hg3d keys buildInvadersData
+                            canons <- liftIO $ gameDataFromBuildData hg3d keys buildCanonData
+                            -- start gameloop actors and animation
+                            glA <-  liftIO $ newGameLoopActor hg3d switchA (musicA myActors) sA keys invaders canons
+                            aA <- liftIO $ newAnimateActor keys invaders
+                            put (myActors {gameLoopA = glA, animateA = aA, statusBarA = sA}, startScreenText, name', PlayGame) >> return ()
+                            -- send data to gameloop actor
+                            liftIO $ sendMsg glA $ ActualInvaderData invaders
+                            liftIO $ sendMsg glA $ ActualCanonData canons
+                        else returnStay
 
-                    _ -> returnStay
+                _ -> returnStay
 
-            BuildField2 -> 
-                case msg of
-                    BuildDone -> do
-                        returnMoveTo BuildField1
-                    _ -> returnStay
 
-            BuildField1 -> 
-                case msg of
-                    BuildDone -> do
-                        liftIO $ sendMsg animateA (CacheLevel (fromJust slotMoveData))
-                        liftIO $ sendMsg statusBarA (SetName name)
-                        liftIO $ sendMsg statusBarA (SetCount 0)
-                        liftIO $ sendMsg statusBarA (SetMode "playing")
-                        liftIO $ sendMsg statusBarA (DisplayStatus)
-                        put (startScreenText, slotMoveData, slotCanonData, Just [], name, PlayGame) >> return ()
-                    _ -> returnStay
+        PlayGame -> do
 
-            PlayGame -> do
+--            liftIO $ print ((isJust slotMoveData), (isJust slotCanonData), (isJust slotCollData)) 
+            case msg of
 
-    --            liftIO $ print ((isJust slotMoveData), (isJust slotCanonData), (isJust slotCollData)) 
-                case msg of
+                SlowCycle -> liftIO $ sendMsg (animateA myActors) SlowCycle
+                FastCycle -> liftIO $ sendMsg (gameLoopA myActors) FastCycle
+                SingleKey k -> do
+                    case k of
+                        "Space" -> do
+                            liftIO $ sendMsg (gameLoopA myActors) Shoot
+                            returnStay
+                        "F1" -> liftIO (sendMsg (statusBarA myActors) (SetMode "paused ...")) >> returnMoveTo Flying
+                        "F2" -> liftIO (sendMsg (flyingA myActors) ResetCamPosition) >> returnStay
+                        _ -> returnStay
 
-                    SlowCycle -> liftIO $ sendMsg animateA SlowCycle
+                KeysPressed keys -> do
+                    if ("Left" `elem` keys) && (not ("Right" `elem` keys))
+                        then do
+                            liftIO $ sendMsg (gameLoopA myActors) MoveLeft
+                            returnStay
+                        else returnStay
 
-                    FastCycle -> do
-                        case (slotMoveData, slotCanonData, slotCollData) of
-                            (Just moveData, Just canonData, Just collData) -> do
-    --                            liftIO $ print "good cycle"
-                                liftIO $ sendMsg collA (CollisionStep canonData moveData)
-                                liftIO $ sendMsg canonA (CanonStep canonData collData)
-                                liftIO $ sendMsg moveA (MoveStep moveData collData)
-                                put (startScreenText, Nothing, Nothing, Nothing, name, gameState)
-                                returnStay
-                            _ -> do
-                                liftIO $ print "missed cycle"
-                                returnStay
+                    if ("Right" `elem` keys) && (not ("Left" `elem` keys)) 
+                        then do
+                            liftIO $ sendMsg (gameLoopA myActors) MoveRight
+                            returnStay
+                        else returnStay
 
-                    SingleKey k -> do
+                _ -> returnStay
+
+
+        Flying -> 
+
+            case msg of
+
+                SlowCycle -> liftIO $ sendMsg (animateA myActors) SlowCycle
+
+                SingleKey k -> do
+                    case k of
+                        "F1" -> liftIO (sendMsg (statusBarA myActors) (SetMode "playing")) >> returnMoveTo PlayGame
+                        "W" -> liftIO (sendMsg (flyingA myActors) MoreSpeed) >> returnStay
+                        "S" -> liftIO (sendMsg (flyingA myActors) LessSpeed) >> returnStay
+                        "Q" -> liftIO (sendMsg (flyingA myActors) ZeroSpeed) >> returnStay
+                        "F2" -> liftIO (sendMsg (flyingA myActors) ResetCamPosition) >> returnStay
+                        "F3" -> liftIO (sendMsg (flyingA myActors) SaveCamPosition) >> returnStay
+                        "F4" -> liftIO (sendMsg (flyingA myActors) RestoreCamPosition) >> returnStay
+                        _ -> returnStay
+
+                KeysPressed keys -> do
+                    mapM (\k -> do
                         case k of
-                            "Space" -> do
-                                liftIO $ sendMsg canonA Shoot
-                                returnStay
-                            "F1" -> liftIO (sendMsg statusBarA (SetMode "paused ...")) >> returnMoveTo Flying
-                            "F2" -> liftIO (sendMsg flyingA ResetCamPosition) >> returnStay
-                            _ -> returnStay
+                            "A" -> liftIO $ sendMsg (flyingA myActors) YawLeft
+                            "D" -> liftIO $ sendMsg (flyingA myActors) YawRight
+                            "Up" -> liftIO $ sendMsg (flyingA myActors) PitchUp 
+                            "Down" -> liftIO $ sendMsg (flyingA myActors) PitchDown
+                            "Left" -> liftIO $ sendMsg (flyingA myActors) RollLeft 
+                            "Right" -> liftIO $ sendMsg (flyingA myActors) RollRight
+                            _ -> return ()
+                        ) keys
+                    returnStay
 
-                    KeysPressed keys -> do
-                        if ("Left" `elem` keys) && (not ("Right" `elem` keys))
-                            then do
-                                liftIO $ sendMsg canonA MoveLeft
-                                returnStay
-                            else returnStay
-
-                        if ("Right" `elem` keys) && (not ("Left" `elem` keys)) 
-                            then do
-                                liftIO $ sendMsg canonA MoveRight
-                                returnStay
-                            else returnStay
-
-                    _ -> returnStay
+                _ -> returnStay
 
 
-            Flying -> 
+data TextData = TextData Entity Entity Entity Entity Entity
 
-                case msg of
+getName :: TextData -> IO T.Text
+getName (TextData _ _ _ _ eName) = readC eName ctEditText
 
-                    SlowCycle -> liftIO $ sendMsg animateA SlowCycle
+hideInitScreen :: TextData -> IO ()
+hideInitScreen (TextData e1 e2 e3 e4 eName) = mapM (\e -> setC e ctScreenRect (Rectangle (-1000) (-1000) 0 0)) [e1, e2, e3, e4, eName] >> return ()
 
-                    SingleKey k -> do
-                        case k of
-                            "F1" -> liftIO (sendMsg statusBarA (SetMode "playing")) >> returnMoveTo PlayGame
-                            "W" -> liftIO (sendMsg flyingA MoreSpeed) >> returnStay
-                            "S" -> liftIO (sendMsg flyingA LessSpeed) >> returnStay
-                            "Q" -> liftIO (sendMsg flyingA ZeroSpeed) >> returnStay
-                            "F2" -> liftIO (sendMsg flyingA ResetCamPosition) >> returnStay
-                            "F3" -> liftIO (sendMsg flyingA SaveCamPosition) >> returnStay
-                            "F4" -> liftIO (sendMsg flyingA RestoreCamPosition) >> returnStay
-                            _ -> returnStay
-
-                    KeysPressed keys -> do
-                        mapM (\k -> do
-                            case k of
-                                "A" -> liftIO $ sendMsg flyingA YawLeft
-                                "D" -> liftIO $ sendMsg flyingA YawRight
-                                "Up" -> liftIO $ sendMsg flyingA PitchUp 
-                                "Down" -> liftIO $ sendMsg flyingA PitchDown
-                                "Left" -> liftIO $ sendMsg flyingA RollLeft 
-                                "Right" -> liftIO $ sendMsg flyingA RollRight
-                                _ -> return ()
-                            ) keys
-                        returnStay
-
-                    _ -> returnStay
-
-
-
+showInitScreen :: HG3D -> IO TextData
 showInitScreen hg3d = do
 
     eT1 <- newE hg3d [
@@ -215,6 +219,24 @@ showInitScreen hg3d = do
         ctScreenRect #: Rectangle 220 350 100 60
         ]
 
-    return (eT1, eT2, eT3, eT4, eName)
+    return $ TextData eT1 eT2 eT3 eT4 eName
 
+
+buildInvadersData :: [BuildElement]
+buildInvadersData = [
+        BEOne Ship (0, 100),
+        BERow Boulder (-45, -50) 40 4,
+        BERow (Invader 3) (-60, 85) 15 11,
+        BERow (Invader 2) (-60, 70) 15 11,
+        BERow (Invader 2) (-60, 55) 15 11,
+        BERow (Invader 1) (-60, 40) 15 11,
+        BERow (Invader 1) (-60, 25) 15 11
+    ]
+
+buildCanonData :: [BuildElement]
+buildCanonData = [
+        BEOne Canon (0, -65),
+        BERow Canon (-60, -80) 15 2,
+        BERow Shot (-1000, 0) 5 5
+    ]
 

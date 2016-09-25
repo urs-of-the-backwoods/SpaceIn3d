@@ -1,63 +1,52 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Music (
-        musicActorF
+        newMusicActor
     ) where
 
 import HGamer3D
 
-import qualified Data.Text as T
-import Control.Concurrent
-import Control.Monad
-import System.Exit
-import System.Random
-
-import qualified Data.Map as M
-import qualified Data.HMap as HM
-import qualified Data.Text as T
-import Data.Tree
-import Data.Maybe
-import qualified Data.Data as D
 import qualified Data.Traversable as Tr
-import qualified Data.Foldable as Fd
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
 
-import Debug.Trace
-
 import Data
 import Actor
-
 
 -- MUSIC ACTOR
 -- -----------
 
-type MaR = HG3D
-type MaS = (Entity, Entity, Entity, Entity)
+type MaR = (Entity, Entity, Entity, Entity)
+type MaS = ()
 
-musicActorF :: Message -> ReaderStateIO MaR MaS ()
-musicActorF m = do
-    hg3d <- lift ask
-    (music, shot, no_shot, invader_killed) <- get
+newMusicActor :: HG3D -> IO Actor
+newMusicActor hg3d = do
+    music <- newE hg3d [ 
+        ctSoundSource #: Music "Sounds/RMN-Music-Pack/OGG/CD 3 - Clash of Wills/3-04 Joyful Ocean.ogg" 1.0 True "Music", 
+        ctPlayCmd #: Stop ] 
+    no_shot <- newE hg3d [ 
+        ctSoundSource #: Sound "Sounds/inventory_sound_effects/ring_inventory.wav" 1.0 False "Sounds",
+        ctPlayCmd #: Stop ]
+    shot <- newE hg3d [ 
+        ctSoundSource #: Sound "Music/shoot.wav" 1.0 False "Sounds",
+        ctPlayCmd #: Stop ]
+    invader_killed <- newE hg3d [ 
+        ctSoundSource #: Sound "Music/invaderkilled.wav" 1.0 False "Sounds",
+        ctPlayCmd #: Stop ]
+
+    actor <- newActor
+    runActor actor musicActorF (music, shot, no_shot, invader_killed) ()
+    return actor
+
+
+musicActorF :: Actor -> Message -> ReaderStateIO MaR MaS ()
+musicActorF musicA m = do
+    (music, shot, no_shot, invader_killed) <- lift ask
 
     case m of 
-        InitActor -> do
-            music <- liftIO $ newE hg3d [ 
-                ctSoundSource #: Music "Sounds/RMN-Music-Pack/OGG/CD 3 - Clash of Wills/3-04 Joyful Ocean.ogg" 1.0 True "Music", 
-                ctPlayCmd #: Stop ] 
-            no_shot <- liftIO $ newE hg3d [ 
-                ctSoundSource #: Sound "Sounds/inventory_sound_effects/ring_inventory.wav" 1.0 False "Sounds",
-                ctPlayCmd #: Stop ]
-            shot <- liftIO $ newE hg3d [ 
-                ctSoundSource #: Sound "Music/shoot.wav" 1.0 False "Sounds",
-                ctPlayCmd #: Stop ]
-            invader_killed <- liftIO $ newE hg3d [ 
-                ctSoundSource #: Sound "Music/invaderkilled.wav" 1.0 False "Sounds",
-                ctPlayCmd #: Stop ]
-            put (music, shot, no_shot, invader_killed)
-            return ()
+        InitActor -> return ()
 
         PlayShot -> liftIO (setC shot ctPlayCmd Play) >> return ()
         PlayNoShot -> liftIO (setC no_shot ctPlayCmd Play) >> return ()

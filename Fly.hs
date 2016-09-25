@@ -6,27 +6,13 @@ module Fly (
 
 import HGamer3D
 
-import qualified Data.Text as T
-import Control.Concurrent
 import Control.Monad
-import System.Exit
-import System.Random
+import Control.Concurrent
 
-import qualified Data.Map as M
-import qualified Data.HMap as HM
-import qualified Data.Text as T
-import Data.Tree
-import Data.Maybe
-import qualified Data.Data as D
-import qualified Data.Traversable as Tr
-import qualified Data.Foldable as Fd
 import Control.Monad.Trans.Reader
 import Control.Monad.Trans.State
-import Control.Monad.IO.Class
 import Control.Monad.Trans.Class
-
-import Debug.Trace
-
+import Control.Monad.IO.Class
 import Data
 import Actor
 
