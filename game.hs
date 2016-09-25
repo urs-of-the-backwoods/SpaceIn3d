@@ -31,7 +31,7 @@ import Input
 import Move
 import Canon
 import Music
-import Screen
+import Switch
 import Status
 import Fly
 import Collision
@@ -50,32 +50,32 @@ gameLogic hg3d = do
     cam <- initializeCam hg3d
 
     -- create actors
-    [moveA, canonA, collA, flyingA, musicA, screenA, keyA, statusBarA, animateA] <- mapM (const newActor) [1..9]
+    [moveA, canonA, collA, flyingA, musicA, switchA, keyA, statusBarA, animateA] <- mapM (const newActor) [1..9]
 
     -- interconnect and run them
     runActor animateA animateActorF (hg3d, keys) (0, undefined)
     runActor statusBarA statusBarActorF hg3d (0, undefined, undefined, undefined)
     runActor flyingA flyingActorF (hg3d, cam) (undefined, undefined)
     runActor musicA musicActorF hg3d (undefined, undefined, undefined, undefined)
-    runActor collA collisionActorF (screenA, keys) ()
-    runActor canonA canonActorF (hg3d, screenA, musicA, collA, keys) ((0,-65), (0,0), False)
-    runActor moveA movementActorF (hg3d, moveA, screenA, musicA, collA, statusBarA, keys) (0)
-    runActor screenA gameScreenActorF (hg3d, animateA, moveA, canonA, collA, musicA, flyingA, statusBarA) (undefined, Nothing, Nothing, Nothing, undefined, ProgramInitializing)
-    runActor keyA keyInputActorF (hg3d, screenA) (undefined, [])
+    runActor collA collisionActorF (switchA, keys) ()
+    runActor canonA canonActorF (hg3d, switchA, musicA, collA, keys) ((0,-65), (0,0), False)
+    runActor moveA movementActorF (hg3d, moveA, switchA, musicA, collA, statusBarA, keys) (0)
+    runActor switchA gameSwitchActorF (hg3d, animateA, moveA, canonA, collA, musicA, flyingA, statusBarA) (undefined, Nothing, Nothing, Nothing, undefined, ProgramInitializing)
+    runActor keyA keyInputActorF (hg3d, switchA) (undefined, [])
 
     let cycleLoop n m = do
             if n == 0 
-                then sendMsg screenA SlowCycle
+                then sendMsg switchA SlowCycle
                 else return ()
             sendMsg keyA PollKeys
-            sendMsg screenA FastCycle
+            sendMsg switchA FastCycle
             sleepFor (msecT 30)
             cycleLoop (if n == 0 then m else n - 1) m
 
     forkIO $ cycleLoop 0 10
 
-    -- start with game logic by starting first screen
-    sendMsg screenA StartProgram
+    -- start with game logic by starting first switch
+    sendMsg switchA StartProgram
 
     return ()
 

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
-module Screen (
-        gameScreenActorF
+module Switch (
+        gameSwitchActorF
     ) where
 
 import HGamer3D
@@ -35,27 +35,27 @@ import Actor
 
 -- SCREEN ACTOR
 -- ------------
--- screenA needs to be fast to be repsonsive to single keys
+-- switchA needs to be fast to be repsonsive to single keys
 -- 
 
 type GsaR = (HG3D, Actor, Actor, Actor, Actor, Actor, Actor, Actor)
 type GsaS = ((Entity, Entity, Entity, Entity, Entity), Maybe GameData, Maybe GameData, Maybe [Unique], T.Text, GameState)
 
-gameScreenActorF :: Message -> ReaderStateIO GsaR GsaS ()
-gameScreenActorF msg = do
+gameSwitchActorF :: Message -> ReaderStateIO GsaR GsaS ()
+gameSwitchActorF msg = do
 
     (hg3d, animateA, moveA, canonA, collA, musicA, flyingA, statusBarA) <- lift ask
-    (screenText, slotMoveData, slotCanonData, slotCollData, name, gameState) <- get
+    (startScreenText, slotMoveData, slotCanonData, slotCollData, name, gameState) <- get
 
     let returnStay = return () 
-    let returnMoveTo state = put (screenText, slotMoveData, slotCanonData, slotCollData, name, state) >> return ()
+    let returnMoveTo state = put (startScreenText, slotMoveData, slotCanonData, slotCollData, name, state) >> return ()
 
 
     case msg of
 
-        ActualCanonData canonData -> put (screenText, slotMoveData, Just canonData, slotCollData, name, gameState) >> return ()
-        ActualInvaderData moveData -> put (screenText, Just moveData, slotCanonData, slotCollData, name, gameState) >> return ()
-        ActualCollData collData -> put (screenText, slotMoveData, slotCanonData, Just collData, name, gameState) >> return ()
+        ActualCanonData canonData -> put (startScreenText, slotMoveData, Just canonData, slotCollData, name, gameState) >> return ()
+        ActualInvaderData moveData -> put (startScreenText, Just moveData, slotCanonData, slotCollData, name, gameState) >> return ()
+        ActualCollData collData -> put (startScreenText, slotMoveData, slotCanonData, Just collData, name, gameState) >> return ()
 
         _ -> case gameState of
 
@@ -74,7 +74,7 @@ gameScreenActorF msg = do
                     SingleKey k -> do
                         if k == "Return" 
                             then do
-                                let (eT1, eT2, eT3, eT4, eName) = screenText
+                                let (eT1, eT2, eT3, eT4, eName) = startScreenText
                                 name' <- liftIO $ readC eName ctEditText
                                 liftIO $ sendMsg moveA BuildLevel
                                 liftIO $ sendMsg canonA BuildLevel
@@ -99,7 +99,7 @@ gameScreenActorF msg = do
                         liftIO $ sendMsg statusBarA (SetCount 0)
                         liftIO $ sendMsg statusBarA (SetMode "playing")
                         liftIO $ sendMsg statusBarA (DisplayStatus)
-                        put (screenText, slotMoveData, slotCanonData, Just [], name, PlayGame) >> return ()
+                        put (startScreenText, slotMoveData, slotCanonData, Just [], name, PlayGame) >> return ()
                     _ -> returnStay
 
             PlayGame -> do
@@ -116,7 +116,7 @@ gameScreenActorF msg = do
                                 liftIO $ sendMsg collA (CollisionStep canonData moveData)
                                 liftIO $ sendMsg canonA (CanonStep canonData collData)
                                 liftIO $ sendMsg moveA (MoveStep moveData collData)
-                                put (screenText, Nothing, Nothing, Nothing, name, gameState)
+                                put (startScreenText, Nothing, Nothing, Nothing, name, gameState)
                                 returnStay
                             _ -> do
                                 liftIO $ print "missed cycle"
