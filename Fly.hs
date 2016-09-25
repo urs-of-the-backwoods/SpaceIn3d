@@ -66,6 +66,7 @@ flyingActorF flyA msg = do
             ori <- liftIO $ readC cam ctOrientation
             pos <- liftIO $ readC cam ctPosition
             liftIO $ writeVar campos (pos, ori)
+            liftIO $ print $ "cam position: " ++ (show pos) ++ " ori: " ++ (show ori)
             return ()
 
         RestoreCamPosition -> do

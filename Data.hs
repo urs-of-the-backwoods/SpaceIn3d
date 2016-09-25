@@ -186,12 +186,16 @@ createMoveNode hg3d keys nodeType pos = do
     let delta = pixelWidth + lineWidth
     let mat = matArt arts
 
-    eGeo <- newE hg3d [
-        ctGraphicsElement #: (),
-        ctScale #: Vec3 1.0 1.0 1.0,
-        ctPosition #: posFromPixelPos dim pos,
-        ctOrientation #: unitU
-        ]
+    let createPars = [
+            ctGraphicsElement #: (),
+            ctScale #: Vec3 1.0 1.0 1.0,
+            ctPosition #: posFromPixelPos dim pos,
+            ctOrientation #: unitU
+            ]
+    let pars = if nodeType == Shot 
+                    then (ctLight #: Light PointLight 1.0 5.0 1.0) : createPars
+                    else createPars 
+    eGeo <- newE hg3d pars
 
     let nd = setData kuni uni $ setData kanim anim $ setData kdim dim $ setData kent eGeo $ setData kpos pos $ initData khits hits
 
@@ -199,13 +203,13 @@ createMoveNode hg3d keys nodeType pos = do
 
     let createPE t (x, y) = do
             e <- newE hg3d [
-                ctParent #: eGeoId,
-                ctGeometry #: ShapeGeometry Cube,
-                ctMaterial #: mat,
-                ctScale #: Vec3 pixelWidth pixelWidth pixelWidth,
-                ctPosition #: (if t == Pixel || t == PixelA then relativePosFromPixelPos dim (x, y) else (Vec3 (-1000) 0 0)), 
-                ctOrientation #: unitU
-                ]
+                    ctParent #: eGeoId,
+                    ctGeometry #: ShapeGeometry Cube,
+                    ctMaterial #: mat,
+                    ctScale #: Vec3 pixelWidth pixelWidth pixelWidth,
+                    ctPosition #: (if t == Pixel || t == PixelA then relativePosFromPixelPos dim (x, y) else (Vec3 (-1000) 0 0)), 
+                    ctOrientation #: unitU
+                    ]
             uni' <- newUnique
             return (e, (x, y), t, uni')
 --            return (e, (x - ((diWidth dim) `div` 2), y - ((diHeight dim) `div` 2)), t)
@@ -444,3 +448,7 @@ artwork = M.fromList [
   
   ]
 
+
+-- interesting cam positions
+
+cam_pos_1 = (Vec3 1.0 (-22.863186) (-10.812058), U (Vec4 0.8459173 (-0.533298) 0.0 0.0))
