@@ -107,6 +107,7 @@ gameSwitchActorF switchA msg = do
                             -- send data to gameloop actor
                             liftIO $ sendMsg glA $ ActualInvaderData invaders
                             liftIO $ sendMsg glA $ ActualCanonData canons
+                            liftIO $ sendMsg sA (SetMode "playing")
                         else returnStay
 
                 _ -> returnStay
