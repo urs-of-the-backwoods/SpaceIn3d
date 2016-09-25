@@ -50,8 +50,6 @@ keyInputActorF keyA msg = do
 
     case msg of 
 
-        InitActor -> return ()
-
         PollKeys -> do
             keys <- liftIO $ updateVar keyevts (\l -> ([], l))
             keysdown' <- foldM (\kd k -> do

@@ -1,7 +1,7 @@
 {-# LANGUAGE OverloadedStrings #-}
 
 module Fly (
-        flyingActorF
+        newFlyingActor
     ) where
 
 import HGamer3D
@@ -20,33 +20,36 @@ import Actor
 -- FLYING CONTROL ACTOR
 -- --------------------
 
-type FaR = (HG3D, Entity)
+type FaR = Entity
 type FaS = (Var Speed, Var (Position, Orientation))
 
-flyingActorF :: Message -> ReaderStateIO FaR FaS ()
-flyingActorF msg = do
+newFlyingActor :: Entity -> IO Actor
+newFlyingActor cam = do
+
+    speed' <- makeVar (Speed 0)
+    ori <- readC cam ctOrientation
+    pos <- readC cam ctPosition
+    campos' <- makeVar (pos, ori)
+
+    let loop = do
+            (Speed s) <- readVar speed'
+            if s /= 0 then forward cam ((fromIntegral s)/30.0) else return ()
+            sleepFor (msecT 30)
+            loop
+    forkIO $ forever $ loop
+
+    actor <- newActor
+    runActor actor flyingActorF cam (speed', campos') 
+    return actor
+
+flyingActorF :: Actor -> Message -> ReaderStateIO FaR FaS ()
+flyingActorF flyA msg = do
 
     let f = 0.01
-    (hg3d, cam) <- lift ask
+    cam <- lift ask
     (speed, campos) <- get
 
     case msg of
-
-        InitActor -> do
-            speed' <- liftIO $ makeVar (Speed 0)
-            ori <- liftIO $ readC cam ctOrientation
-            pos <- liftIO $ readC cam ctPosition
-            campos' <- liftIO $ makeVar (pos, ori)
-
-            let loop = do
-                    (Speed s) <- readVar speed'
-                    if s /= 0 then forward cam ((fromIntegral s)/30.0) else return ()
-                    sleepFor (msecT 30)
-                    loop
-
-            liftIO $ forkIO $ forever $ loop
-            put (speed', campos')
-            return ()
 
         YawRight -> liftIO  (yaw' cam (f)) >> return ()
         YawLeft -> liftIO  (yaw' cam (-f)) >> return ()

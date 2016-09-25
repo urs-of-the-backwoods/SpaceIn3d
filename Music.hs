@@ -46,8 +46,6 @@ musicActorF musicA m = do
     (music, shot, no_shot, invader_killed) <- lift ask
 
     case m of 
-        InitActor -> return ()
-
         PlayShot -> liftIO (setC shot ctPlayCmd Play) >> return ()
         PlayNoShot -> liftIO (setC no_shot ctPlayCmd Play) >> return ()
         PlayExplosion -> liftIO (setC invader_killed ctPlayCmd Play) >> return ()

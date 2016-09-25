@@ -41,10 +41,11 @@ data MyActors = MyActors {
 type GsaR = (HG3D)
 type GsaS = (MyActors, TextData, T.Text, GameState)
 
-newSwitchActor :: HG3D -> IO Actor
-newSwitchActor hg3d = do
+newSwitchActor :: HG3D -> Entity -> IO Actor
+newSwitchActor hg3d cam = do
+    flyA <- newFlyingActor cam
     actor <- newActor
-    runActor actor gameSwitchActorF hg3d (MyActors undefined undefined undefined undefined undefined undefined, undefined, undefined, ProgramInitializing)
+    runActor actor gameSwitchActorF hg3d (MyActors undefined undefined undefined undefined flyA undefined, undefined, undefined, ProgramInitializing)
     return actor 
 
 gameSwitchActorF :: Actor -> Message -> ReaderStateIO GsaR GsaS ()

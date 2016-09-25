@@ -20,24 +20,20 @@ import Data.Unique
 
 -- define all messages in this program, high level between actors
 
-data Message = InitActor | StopActor -- intialize and stop actor
-             | InitMusic | StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion -- music actor
-             | StartProgram | BuildDone | KeysPressed [T.Text] | SingleKey T.Text -- screen actor
-             | InitKeys | PollKeys -- key input actor
+data Message = 
+             StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion 
+             | StartProgram | KeysPressed [T.Text] | SingleKey T.Text 
+             | PollKeys 
              | FastCycle | SlowCycle 
-             | BuildLevel | MoveLeft | MoveRight | Shoot | MovementCycle -- movement actor
-             | RollRight | RollLeft | PitchUp | PitchDown -- flying control
-             | YawLeft | YawRight 
-             | MoreSpeed | LessSpeed | ZeroSpeed 
+             | MoveLeft | MoveRight | Shoot 
+             | RollRight | RollLeft | PitchUp | PitchDown | YawLeft | YawRight | MoreSpeed | LessSpeed | ZeroSpeed 
              | ResetCamPosition | RestoreCamPosition | SaveCamPosition
-             | DisplayStatus | HideStatus | SetName T.Text | SetCount Int | SetMode T.Text -- status bar actor
-             | ActualInvaderData GameData | ActualCanonData GameData | ActualCollData [Unique] -- send to collision detector actor
+             | DisplayStatus | HideStatus | AddCount Int | SetMode T.Text 
+             | ActualInvaderData GameData | ActualCanonData GameData | ActualCollData [Unique] 
              | CanonStep GameData [Unique] | MoveStep GameData [Unique] | CollisionStep GameData GameData
-             | CacheLevel GameData
-             | AddCount Int
 --             deriving (Show)
 
-newtype Actor = Actor (MVar Message)
+newtype Actor = Actor (MVar Message) 
 
 newActor :: IO Actor
 newActor = do
@@ -53,9 +49,7 @@ runActor a@(Actor mv) f ri si = do
             (_, s') <- runReaderT (runStateT (f a msg) s) ri
             loop mv s'
     forkIO $ loop mv si
-    sendMsg a InitActor
-
-stopActor a = sendMsg a StopActor
+    return ()
 
 sendMsg :: Actor -> Message -> IO ()
 sendMsg (Actor mv) m = putMVar mv m

@@ -37,9 +37,6 @@ animateActorF animA msg = do
     put (count + 1, gameData)
 
     case msg of
-
-        InitActor -> return ()
-        CacheLevel level -> put (count + 1, level)
         SlowCycle -> animateLevel
         _ -> return ()
 

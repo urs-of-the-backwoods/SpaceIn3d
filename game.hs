@@ -18,7 +18,7 @@ gameLogic hg3d = do
     cam <- initializeCam hg3d
 
     -- create main switch actor and send message
-    switchA <- newSwitchActor hg3d
+    switchA <- newSwitchActor hg3d cam
     sendMsg switchA StartProgram
     return ()
 
