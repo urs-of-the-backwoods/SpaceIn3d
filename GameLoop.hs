@@ -35,7 +35,8 @@ import Data.Maybe
 data MyActors = MyActors {
     moveA :: Actor,
     canonA :: Actor,
-    collA :: Actor
+    collA :: Actor,
+    switchA :: Actor
 }
 
 type GlaR = MyActors
@@ -50,7 +51,7 @@ newGameLoopActor switchA musicA statusA keys invaders canons = do
     moveA <- newMoveActor collA musicA statusA keys
     canonA <- newCanonActor collA musicA keys
 
-    runActor actor gameLoopActorF (MyActors moveA canonA collA) (Nothing, Nothing, Just [])
+    runActor actor gameLoopActorF (MyActors moveA canonA collA switchA) (Nothing, Nothing, Just [])
     return actor
 
 
@@ -84,6 +85,9 @@ gameLoopActorF loopA msg = do
         MoveLeft -> liftIO $ sendMsg (canonA myActors) MoveLeft
         MoveRight -> liftIO $ sendMsg (canonA myActors) MoveRight
         Shoot -> liftIO $ sendMsg (canonA myActors) Shoot
+
+        GameLostOverrun -> liftIO $ sendMsg (switchA myActors) GameLostOverrun
+        GameWon -> liftIO $ sendMsg (switchA myActors) GameWon
 
         _ -> return ()
 

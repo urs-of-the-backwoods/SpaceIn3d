@@ -142,6 +142,17 @@ gameSwitchActorF switchA msg = do
                             returnStay
                         else returnStay
 
+
+                GameLostOverrun -> do
+                    liftIO $ sendMsg (statusBarA myActors) (SetMode "game lost!")
+                    liftIO $ showLost hg3d
+                    returnMoveTo FinalScore
+
+                GameWon -> do
+                    liftIO $ sendMsg (statusBarA myActors) (SetMode "game won!")
+                    liftIO $ showWon hg3d
+                    returnMoveTo FinalScore
+
                 _ -> returnStay
 
 
@@ -178,6 +189,16 @@ gameSwitchActorF switchA msg = do
                 _ -> returnStay
 
 
+
+        FinalScore ->
+            case msg of
+
+                SlowCycle -> liftIO $ sendMsg (animateA myActors) SlowCycle
+
+                _ -> returnStay                
+
+
+
 data TextData = TextData Entity Entity Entity Entity Entity
 
 getName :: TextData -> IO T.Text
@@ -185,6 +206,21 @@ getName (TextData _ _ _ _ eName) = readC eName ctEditText
 
 hideInitScreen :: TextData -> IO ()
 hideInitScreen (TextData e1 e2 e3 e4 eName) = mapM (\e -> setC e ctScreenRect (Rectangle (-1000) (-1000) 0 0)) [e1, e2, e3, e4, eName] >> return ()
+
+showResultScreen :: HG3D -> T.Text -> IO ()
+showResultScreen hg3d result = do
+
+    eT1 <- newE hg3d [
+        ctText #: result,
+        ctScreenRect #: Rectangle 250 200 100 25
+        ]
+
+    sleepFor (secT 5)
+    return ()
+
+showWon hg3d = showResultScreen hg3d "Congratulation, you made it!"
+showLost hg3d = showResultScreen hg3d "You lost, try again!"
+
 
 showInitScreen :: HG3D -> IO TextData
 showInitScreen hg3d = do

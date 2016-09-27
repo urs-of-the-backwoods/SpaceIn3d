@@ -39,7 +39,7 @@ initializeCam hg3d = do
         ]
     l1 <- newE hg3d [
         ctPosition #: (Vec3 (-20.0) 5.0 (-30.0)),
-        ctLight #: Light PointLight 1.0 50.0 1.0,
+        ctLight #: Light PointLight 1.0 70.0 1.0,
         ctOrientation #: unitU 
         ]
 

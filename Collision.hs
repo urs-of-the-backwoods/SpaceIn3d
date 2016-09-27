@@ -79,25 +79,43 @@ isCollision keys i s = let
     wg = xmax - xmin
     hg = ymax - ymin
 
-    coll = (wg + 1) <= (w' + w) && (hg - 3) <= (h' + h)
+    coll = wg <= (w' + w) && hg <= (h' + h)
     in coll
 
-removeDuplicates = foldr (\x seen -> if x `elem` seen then seen else x : seen) []
+-- removeDuplicates = foldr (\x seen -> if x `elem` seen then seen else x : seen) []
 
 runCollisionDetection :: Actor -> Keys -> GameData -> GameData -> ReaderStateIO CoaR CoaS ()
 runCollisionDetection gameLoopA keys invaderData canonData = do
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
-    let invs = filter (\(nt, nd) -> case nt of
+    let invaderList = flatten invaderData
+    let invaders = filter (\(nt, nd) -> case nt of
             (Invader _) -> let (x, y) = nd ! kpos in if x < (-500) then False else True
-            Boulder -> let (x, y) = nd ! kpos in if x < (-500) then False else True
             _ -> False
-            ) (flatten invaderData)
-    let shots = filter (\(nt, nd) -> nt == Shot) (flatten canonData)
-    let cols = [ (s ! kuni, i ! kuni) | (_, s) <- shots, (_, i) <- invs, isCollision keys i s]
-    let cols' = removeDuplicates $ concatMap (\(a, b) -> [a, b]) cols
+            ) invaderList
 
-    liftIO $ sendMsg gameLoopA $ ActualInvaderData invaderData 
-    liftIO $ sendMsg gameLoopA $ ActualCanonData canonData 
-    liftIO $ sendMsg gameLoopA $ ActualCollData cols' 
-    put (Nothing, Nothing)
-    return ()
+    if length invaders == 0
+        then do
+            liftIO $ sendMsg gameLoopA GameWon
+            return ()
+        else do
+            let boulders = filter (\(nt, nd) -> case nt of
+                    Boulder -> let (x, y) = nd ! kpos in if x < (-500) then False else True
+                    _ -> False
+                    ) invaderList
+            let invsAndBoulders = invaders ++ boulders
+            let shots = filter (\(nt, nd) -> nt == Shot) (flatten canonData)
+
+            -- collision invader boulder -> game end
+            let colsBoulders = [ (s ! kuni, i ! kuni) | (_, s) <- boulders, (_, i) <- invaders, isCollision keys i s]
+            if length colsBoulders > 0
+                then do
+                    liftIO $ sendMsg gameLoopA GameLostOverrun
+                    return ()
+                else do
+                    let cols = concatMap (\(a, b) -> [a, b]) [ (s ! kuni, i ! kuni) | (_, s) <- shots, (_, i) <- invsAndBoulders, isCollision keys i s]
+
+                    liftIO $ sendMsg gameLoopA $ ActualInvaderData invaderData 
+                    liftIO $ sendMsg gameLoopA $ ActualCanonData canonData 
+                    liftIO $ sendMsg gameLoopA $ ActualCollData cols
+                    put (Nothing, Nothing)
+                    return ()

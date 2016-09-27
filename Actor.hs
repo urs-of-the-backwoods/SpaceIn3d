@@ -31,6 +31,7 @@ data Message =
              | DisplayStatus | HideStatus | AddCount Int | SetMode T.Text 
              | ActualInvaderData GameData | ActualCanonData GameData | ActualCollData [Unique] 
              | CanonStep GameData [Unique] | MoveStep GameData [Unique] | CollisionStep GameData GameData
+             | GameLostOverrun | GameWon
 --             deriving (Show)
 
 newtype Actor = Actor (MVar Message) 
