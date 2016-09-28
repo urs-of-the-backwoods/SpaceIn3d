@@ -58,6 +58,7 @@ movementActorF moveA m = do
             if bMove 
                 then do
                     liftIO $ doOneRun keys myActors gameData colls move moves
+                    liftIO $ sendMsg (musicA myActors) PlayStep
                     return ()
                 else do
                     liftIO $ removeColls keys myActors gameData colls move moves

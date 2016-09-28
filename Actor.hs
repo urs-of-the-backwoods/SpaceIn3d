@@ -21,7 +21,7 @@ import Data.Unique
 -- define all messages in this program, high level between actors
 
 data Message = 
-             StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion 
+             StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion | PlayStep
              | StartProgram | KeysPressed [T.Text] | SingleKey T.Text 
              | PollKeys 
              | FastCycle | SlowCycle 
