@@ -21,7 +21,7 @@ import Data.Unique
 -- define all messages in this program, high level between actors
 -- HGamer3D website, space invaders, messages
 data Message = StartProgram
-             StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion | PlayStep
+             | StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion | PlayStep
              | KeysPressed [T.Text] | SingleKey T.Text | PollKeys 
              | FastCycle | SlowCycle 
              | MoveLeft | MoveRight | Shoot 
