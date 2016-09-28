@@ -24,6 +24,7 @@ import Control.Monad.Trans.Class
 import Data.Unique
 import Data.Maybe
 
+
 -- GAMELOOP ACTOR
 -- --------------
 -- runs multiple computations in parallel, by invoking three other actors:
@@ -32,6 +33,7 @@ import Data.Maybe
 -- coll actor: collision detection
 -- 
 
+-- HGamer3D website, space invaders, gameloop actor
 data MyActors = MyActors {
     moveA :: Actor,
     canonA :: Actor,
@@ -61,8 +63,6 @@ gameLoopActorF loopA msg = do
     myActors <- lift ask
     (slotMoveData, slotCanonData, slotCollData) <- get
 
---    liftIO $ print $ (isJust slotMoveData, isJust slotCanonData, isJust slotCollData)
-
     case msg of
 
         ActualCanonData canonData -> put (slotMoveData, Just canonData, slotCollData) >> return ()
@@ -90,6 +90,7 @@ gameLoopActorF loopA msg = do
         GameWon -> liftIO $ sendMsg (switchA myActors) GameWon
 
         _ -> return ()
+-- end of website text
 
 
 

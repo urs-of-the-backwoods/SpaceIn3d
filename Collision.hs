@@ -82,8 +82,7 @@ isCollision keys i s = let
     coll = wg <= (w' + w) && hg <= (h' + h)
     in coll
 
--- removeDuplicates = foldr (\x seen -> if x `elem` seen then seen else x : seen) []
-
+-- HGamer3D website, space invaders, collision
 runCollisionDetection :: Actor -> Keys -> GameData -> GameData -> ReaderStateIO CoaR CoaS ()
 runCollisionDetection gameLoopA keys invaderData canonData = do
     let (kent, kdim, kpos, khits, kanim, kuni) = keys
@@ -119,3 +118,4 @@ runCollisionDetection gameLoopA keys invaderData canonData = do
                     liftIO $ sendMsg gameLoopA $ ActualCollData cols
                     put (Nothing, Nothing)
                     return ()
+-- end of website text

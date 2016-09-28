@@ -19,21 +19,21 @@ import Data.Unique
 -- ------
 
 -- define all messages in this program, high level between actors
-
-data Message = 
+-- HGamer3D website, space invaders, messages
+data Message = StartProgram
              StartMusic | StopMusic | PlayShot | PlayNoShot | PlayExplosion | PlayStep
-             | StartProgram | KeysPressed [T.Text] | SingleKey T.Text 
-             | PollKeys 
+             | KeysPressed [T.Text] | SingleKey T.Text | PollKeys 
              | FastCycle | SlowCycle 
              | MoveLeft | MoveRight | Shoot 
-             | RollRight | RollLeft | PitchUp | PitchDown | YawLeft | YawRight | MoreSpeed | LessSpeed | ZeroSpeed 
+             | RollRight | RollLeft | PitchUp | PitchDown | YawLeft | YawRight | MoreSpeed | LessSpeed | ZeroSpeed  
              | ResetCamPosition | RestoreCamPosition | SaveCamPosition
              | DisplayStatus | HideStatus | AddCount Int | SetMode T.Text 
              | ActualInvaderData GameData | ActualCanonData GameData | ActualCollData [Unique] 
              | CanonStep GameData [Unique] | MoveStep GameData [Unique] | CollisionStep GameData GameData
              | GameLostOverrun | GameWon
---             deriving (Show)
+-- end of website text
 
+-- HGamer3D website, space invaders, actors
 newtype Actor = Actor (MVar Message) 
 
 newActor :: IO Actor
@@ -54,4 +54,4 @@ runActor a@(Actor mv) f ri si = do
 
 sendMsg :: Actor -> Message -> IO ()
 sendMsg (Actor mv) m = putMVar mv m
-
+-- end of website text

@@ -40,7 +40,7 @@ animateActorF animA msg = do
         SlowCycle -> animateLevel
         _ -> return ()
 
-
+-- HGamer3D website, space invaders, animate
 animateLevel :: ReaderStateIO AnaR AnaS ()
 animateLevel = do
 
@@ -84,6 +84,5 @@ animateLevel = do
             ) (undefined, undefined) gameData
 
     put (count, gameData')
-
     return ()
-
+-- end of website text

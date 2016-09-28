@@ -57,7 +57,7 @@ gameSwitchActorF switchA msg = do
     let returnStay = return () 
     let returnMoveTo state = put (myActors, startScreenText, name, state) >> return ()
 
-
+    -- HGamer3D website, space invaders, switch actor
     case gameState of
 
         ProgramInitializing -> 
@@ -81,7 +81,7 @@ gameSwitchActorF switchA msg = do
 
                     put (myActors {keyA = kA, musicA = mA}, startScreenText', name, InitScreen)
                 _ -> returnStay
-
+    -- end of website text
 
         InitScreen -> 
 

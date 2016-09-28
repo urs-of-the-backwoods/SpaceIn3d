@@ -20,9 +20,10 @@ import Debug.Trace
 
 data GameState = ProgramInitializing | InitScreen | PlayGame | Flying | FinalScore deriving (Eq, Ord, Show)
 
+
 -- main data structure for game content - the game data tree
 -- ---------------------------------------------------------
-
+-- HGamer3D website, space invaders, data tree
 data NodeType = Canon | ReserveCanon | Boulder | Invader Int | Ship | Shot 
               | InvaderRow | CanonRow | BoulderRow | ShotRow
               | Pixel | PixelA | PixelB      -- the single pixel cubes, different variants for animation
@@ -39,6 +40,7 @@ type KDim = HM.HKey HM.T DimInfo
 type KEnt = HM.HKey HM.T Entity
 type KAnim = HM.HKey HM.T AnimInfo
 type KUni = HM.HKey HM.T Unique
+-- end of website text
 
 type Keys = (KEnt, KDim, KPos, KHits, KAnim, KUni)
 
