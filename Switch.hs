@@ -205,14 +205,14 @@ getName :: TextData -> IO T.Text
 getName (TextData _ _ _ _ eName) = readC eName ctEditText
 
 hideInitScreen :: TextData -> IO ()
-hideInitScreen (TextData e1 e2 e3 e4 eName) = mapM (\e -> setC e ctScreenRect (Rectangle (-1000) (-1000) 0 0)) [e1, e2, e3, e4, eName] >> return ()
+hideInitScreen (TextData e1 e2 e3 e4 eName) = mapM (\e -> setC e ctScreenRect (ScreenRect (-1000) (-1000) 0 0)) [e1, e2, e3, e4, eName] >> return ()
 
 showResultScreen :: HG3D -> T.Text -> IO ()
 showResultScreen hg3d result = do
 
     eT1 <- newE hg3d [
-        ctText #: result,
-        ctScreenRect #: Rectangle 250 200 100 25
+        ctStaticText #: result,
+        ctScreenRect #: ScreenRect 250 200 100 25
         ]
 
     sleepFor (secT 5)
@@ -226,27 +226,27 @@ showInitScreen :: HG3D -> IO TextData
 showInitScreen hg3d = do
 
     eT1 <- newE hg3d [
-        ctText #: "Space Invaders 3D",
-        ctScreenRect #: Rectangle 250 100 100 25
+        ctStaticText #: "Space Invaders 3D",
+        ctScreenRect #: ScreenRect 250 100 100 25
         ]
 
     eT2 <- newE hg3d [
-        ctText #: "programmed by: Peter Althainz\nusing the fabulous HGamer3D toolset\nSeptember 2016\n\nhttp://www.hgamer3d.org",
-        ctScreenRect #: Rectangle 220 150 100 60
+        ctStaticText #: "programmed by: Peter Althainz\nusing the fabulous HGamer3D toolset\nSeptember 2016\n\nhttp://www.hgamer3d.org",
+        ctScreenRect #: ScreenRect 220 150 100 60
         ]
 
     eT3 <- newE hg3d [
-        ctText #: "dear brave hero, please type in your name: ",
-        ctScreenRect #: Rectangle 220 250 100 60
+        ctStaticText #: "dear brave hero, please type in your name: ",
+        ctScreenRect #: ScreenRect 220 250 100 60
         ]
 
     eName <- newE hg3d [
         ctEditText #: "The Brave Hero",
-        ctScreenRect #: Rectangle 220 280 200 30
+        ctScreenRect #: ScreenRect 220 280 200 30
         ]
 
     eT4 <- newE hg3d [
-        ctText #: (T.pack . unlines $ [
+        ctStaticText #: (T.pack . unlines $ [
             "Keys:",
             "F1 - switch pause flight mode - play mode",
             "F2 - reset camera position",
@@ -254,7 +254,7 @@ showInitScreen hg3d = do
             "F4 - restore camera position (flight mode)\n",
             "Flight Mode: WSADQ Up/Down/Left/Right",
             "Play Mode: Left/Right/Space" ]),
-        ctScreenRect #: Rectangle 220 350 100 60
+        ctScreenRect #: ScreenRect 220 350 100 60
         ]
 
     return $ TextData eT1 eT2 eT3 eT4 eName

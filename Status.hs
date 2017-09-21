@@ -24,18 +24,18 @@ newStatusBarActor :: HG3D -> Int -> T.Text -> T.Text -> IO Actor
 newStatusBarActor hg3d count name status = do
 
     eL <- liftIO $ newE hg3d [
-        ctText #: ("hero: " `T.append` name),
-        ctScreenRect #: Rectangle 10 10 100 25
+        ctStaticText #: ("hero: " `T.append` name),
+        ctScreenRect #: ScreenRect 10 10 100 25
         ]
 
     eM <- liftIO $ newE hg3d [
-        ctText #: (T.pack ("count: " ++ (show count))),
-        ctScreenRect #: Rectangle 350 10 100 25
+        ctStaticText #: (T.pack ("count: " ++ (show count))),
+        ctScreenRect #: ScreenRect 350 10 100 25
         ]
 
     eR <- liftIO $ newE hg3d [
-        ctText #: status,
-        ctScreenRect #: Rectangle 590 10 100 25
+        ctStaticText #: status,
+        ctScreenRect #: ScreenRect 590 10 100 25
         ]
 
     actor <- newActor
@@ -50,16 +50,16 @@ statusBarActorF statusA msg = do
     (count, textLeft, textMiddle, textRight) <- get
 
     let setY y' e = do
-            r@(Rectangle x y w h) <- readC e ctScreenRect
-            setC e ctScreenRect (Rectangle x y' w h)
+            r@(ScreenRect x y w h) <- readC e ctScreenRect
+            setC e ctScreenRect (ScreenRect x y' w h)
             return ()
 
     case msg of
 
         DisplayStatus -> liftIO (mapM (\e -> setY 10 e) [textLeft, textMiddle, textRight]) >> return ()
         HideStatus -> liftIO (mapM (\e -> setY (-1000) e) [textLeft, textMiddle, textRight]) >> return ()
-        AddCount count' -> put (count + count', textLeft, textMiddle, textRight) >> liftIO (setC textMiddle ctText (T.pack ("count: " ++ (show (count + count'))))) >> return ()
-        SetMode mode -> liftIO (setC textRight ctText mode)  >> return ()
+        AddCount count' -> put (count + count', textLeft, textMiddle, textRight) >> liftIO (setC textMiddle ctStaticText (T.pack ("count: " ++ (show (count + count'))))) >> return ()
+        SetMode mode -> liftIO (setC textRight ctStaticText mode)  >> return ()
         _ -> return ()
 
 

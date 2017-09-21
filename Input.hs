@@ -27,7 +27,7 @@ type KiaS = (Var [KeyEvent], [T.Text])
 handleKey :: Actor -> Var [KeyEvent] -> KeyEvent -> IO ()
 handleKey switchA kevts evt = do
     case evt of
-        KeyDown _ _ k -> sendMsg switchA (SingleKey k)
+        KeyDownEvent (KeyData _ _ k) -> sendMsg switchA (SingleKey k)
         _ -> return ()
     updateVar kevts (\l -> (l ++ [evt], ()))
 
@@ -54,11 +54,11 @@ keyInputActorF keyA msg = do
             keys <- liftIO $ updateVar keyevts (\l -> ([], l))
             keysdown' <- foldM (\kd k -> do
                     case k of
-                        KeyDown _ _ k -> do
+                        KeyDownEvent (KeyData _ _ k) -> do
                             let kd' = if not (k `elem` kd) then (k : kd) else kd
                             return kd'
 
-                        KeyUp _ _ k -> do
+                        KeyUpEvent (KeyData _ _ k) -> do
                             let kd' = filter (\k' -> k' /= k) kd
                             return kd'
                 ) keysdown (reverse keys)

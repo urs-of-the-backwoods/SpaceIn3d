@@ -205,9 +205,9 @@ createMoveNode hg3d keys nodeType pos = do
 
     let createPE t (x, y) = do
             e <- newE hg3d [
-                    ctParent #: eGeoId,
                     ctGeometry #: ShapeGeometry Cube,
                     ctMaterial #: mat,
+                    ctParent #: eGeoId,
                     ctScale #: Vec3 pixelWidth pixelWidth pixelWidth,
                     ctPosition #: (if t == Pixel || t == PixelA then relativePosFromPixelPos dim (x, y) else (Vec3 (-1000) 0 0)), 
                     ctOrientation #: unitU

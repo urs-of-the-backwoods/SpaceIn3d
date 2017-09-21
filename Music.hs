@@ -24,19 +24,19 @@ type MaS = ()
 newMusicActor :: HG3D -> IO Actor
 newMusicActor hg3d = do
     music <- newE hg3d [ 
-        ctSoundSource #: Music "Sounds/RMN-Music-Pack/OGG/CD 3 - Clash of Wills/3-04 Joyful Ocean.ogg" 1.0 True "Music", 
+        ctSoundSource #: SoundSource Music "Sounds/RMN-Music-Pack/OGG/CD 3 - Clash of Wills/3-04 Joyful Ocean.ogg" True 1.0 "Music", 
         ctPlayCmd #: Stop ] 
     no_shot <- newE hg3d [ 
-        ctSoundSource #: Sound "Sounds/inventory_sound_effects/ring_inventory.wav" 1.0 False "Sounds",
+        ctSoundSource #: SoundSource Sound "Sounds/inventory_sound_effects/ring_inventory.wav" False 1.0 "Sounds",
         ctPlayCmd #: Stop ]
     shot <- newE hg3d [ 
-        ctSoundSource #: Sound "Music/shoot.wav" 1.0 False "Sounds",
+        ctSoundSource #: SoundSource Sound "Music/shoot.wav" False 1.0 "Sounds",
         ctPlayCmd #: Stop ]
     invader_killed <- newE hg3d [ 
-        ctSoundSource #: Sound "Music/invaderkilled.wav" 1.0 False "Sounds",
+        ctSoundSource #: SoundSource Sound "Music/invaderkilled.wav" False 1.0 "Sounds",
         ctPlayCmd #: Stop ]
     invader_step <- newE hg3d [ 
-        ctSoundSource #: Sound "Music/fastinvader1.wav" 1.0 False "Sounds",
+        ctSoundSource #: SoundSource Sound "Music/fastinvader1.wav" False 1.0 "Sounds",
         ctPlayCmd #: Stop ]
 
     actor <- newActor
