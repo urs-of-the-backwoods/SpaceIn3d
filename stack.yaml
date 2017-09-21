@@ -1,4 +1,27 @@
-extra-deps: ["HGamer3D-0.8.0", "fresco-binding-0.2.0", "vect-0.4.7", "rapid-0.1.2"]
-resolver: lts-5.8
-flags: {}
-packages: [".", "../HMap"]
+resolver: lts-8.20
+extra-deps: ["vect-0.4.7", "rapid-0.1.3"]
+packages: 
+- "."
+- location:
+    git: https://github.com/urs-of-the-backwoods/fresco.git
+    commit: 857234c
+  subdirs:
+  - haskell-binding
+  extra-dep: true
+- location:
+    git: https://github.com/urs-of-the-backwoods/HGamer3D.git
+    commit: 4c26295
+  subdirs:
+  - src
+  extra-dep: true
+- location:
+    git: https://github.com/well-typed/binary-serialise-cbor.git
+    commit: c617075
+  extra-dep: true
+- location:
+    git: https://github.com/atzeus/HMap
+    commit: 218519a
+  extra-dep: true
+flags:
+  binary-serialise-cbor:
+    newtime15: true
