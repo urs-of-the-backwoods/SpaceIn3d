@@ -3,7 +3,7 @@
 updated build instructions:
 
 - install aio from github [aio installer](http://github.com/urs-of-the-backwoods/aio-installer)
-- install |HGamer3D| toolset, by running `aio http://www.hgamer3d.org/tools/Install.1217 install` 
+- install HGamer3D toolset, by running `aio http://www.hgamer3d.org/tools/Install.1217 install` 
 - build with command `aio Stack --local-bin-path .`
 
 run instructions windows:
