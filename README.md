@@ -20,6 +20,6 @@ run instructions windows:
 - run with command `aio http://www.hgamer3d.org/tools/Run.0517 game.exe`
 
 run instructions linux/mac
-- run with command `HG3D_RESOURCE_PATH=./Media aio Run ./game`
+- run with command `HG3D_RESOURCE_PATH=./Media aio http://www.hgamer3d.org/tools/Run.0517 ./game`
 
 build with [HGamer3D](http://www.hgamer3d.org)
