@@ -12,7 +12,7 @@ http://hal2016.haskell.org/slides/HAL2016-althainz.pdf
 
 - install aio from github [aio installer](http://github.com/urs-of-the-backwoods/aio-installer)
 - install HGamer3D toolset, by running `aio http://www.hgamer3d.org/tools/HGamer3D.0218 install` 
-- build with command `aio http://www.hgamer3d.org/tools/Stack.0617 --local-bin-path .`
+- build with command `aio http://www.hgamer3d.org/tools/Stack.0617 install --local-bin-path .`
 
 run instructions windows:
 
